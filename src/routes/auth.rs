@@ -1,6 +1,6 @@
 use axum::{
     extract::{Query, State},
-    response::{IntoResponse, Redirect},
+    response::{Html, IntoResponse, Redirect},
     routing::get,
     Router,
 };
@@ -20,11 +20,36 @@ use crate::{
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/auth/login", get(login))
+        .route("/auth/start", get(start_login))
         .route("/auth/callback", get(callback))
         .route("/auth/logout", get(logout))
 }
 
-async fn login(
+/// Render the login landing page. Linked to by AppError::Unauthorized and
+/// by the post-logout redirect from Keycloak.
+async fn login(State(state): State<AppState>) -> AppResult<impl IntoResponse> {
+    let realm = state
+        .config
+        .oidc_issuer
+        .rsplit('/')
+        .next()
+        .unwrap_or("your organization")
+        .to_string();
+
+    let mut ctx = tera::Context::new();
+    ctx.insert("realm", &realm);
+
+    let html = state
+        .tera
+        .render("login.html", &ctx)
+        .map_err(|e| AppError::Internal(e.into()))?;
+
+    Ok(Html(html))
+}
+
+/// Begin the OIDC authorization code flow. Generates state + nonce,
+/// stores them in the session, redirects to Keycloak.
+async fn start_login(
     State(state): State<AppState>,
     session: Session,
 ) -> AppResult<impl IntoResponse> {
@@ -80,7 +105,6 @@ async fn callback(
         .await
         .map_err(AppError::Internal)?;
 
-    // Nonce lives in the ID token per OIDC spec, not the access token.
     if let Some(ref id_token) = tokens.id_token {
         let token_nonce = nonce_from_id_token(id_token).unwrap_or_default();
         if !csrf_tokens_equal(&token_nonce, &session_nonce) {
