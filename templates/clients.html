@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}Clients — Grafter{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Clients</h1>
+</div>
+
+<div style="display:flex; gap:10px; margin-bottom:18px; align-items:flex-end;">
+  <div>
+    <label>Realm</label>
+    <select onchange="location.href='/clients?realm='+this.value">
+      {% for r in realms %}
+        <option value="{{ r.name }}" {% if r.name == current_realm %}selected{% endif %}>
+          {{ r.display_name | default(value=r.name) }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div style="flex:1;">
+    <label>Filter</label>
+    <input type="search" id="search" placeholder="client id or name…"
+           oninput="filterClients()" style="width:100%; max-width:280px;">
+  </div>
+</div>
+
+<div class="table-wrap">
+  <table id="tbl">
+    <thead>
+      <tr>
+        <th class="sortable sorted" data-col="0" data-dir="asc">Client ID<span class="sort-ind">▲</span></th>
+        <th class="sortable" data-col="1">Name<span class="sort-ind">▲</span></th>
+        <th class="sortable" data-col="2">Protocol<span class="sort-ind">▲</span></th>
+        <th class="sortable" data-col="3">Type<span class="sort-ind">▲</span></th>
+        <th class="sortable" data-col="4">Status<span class="sort-ind">▲</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in clients %}
+      <tr data-name="{{ c.client_id | lower }} {{ c.name | default(value='') | lower }}">
+        <td>
+          <a href="/clients/{{ current_realm }}/{{ c.id }}" class="link-primary">{{ c.client_id }}</a>
+        </td>
+        <td style="color:var(--muted);">{{ c.name | default(value='—') }}</td>
+        <td style="color:var(--muted); font-size:0.82rem; text-transform:uppercase; letter-spacing:0.3px;">
+          {{ c.protocol | default(value='—') }}
+        </td>
+        <td>
+          {% if c.public_client %}
+            <span class="pill pill-gray">public</span>
+          {% elif c.service_accounts_enabled %}
+            <span class="pill pill-teal">service account</span>
+          {% else %}
+            <span class="pill pill-blue">confidential</span>
+          {% endif %}
+        </td>
+        <td>
+          <span class="dot {% if c.enabled %}dot-on{% else %}dot-off{% endif %}"></span>
+          <span style="{% if not c.enabled %}color:var(--muted);{% endif %}">
+            {% if c.enabled %}active{% else %}disabled{% endif %}
+          </span>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if not clients %}
+<div style="padding:64px 0;text-align:center;">
+  <p style="font-size:0.9rem;font-weight:500;color:var(--text-strong);margin-bottom:6px;">No clients registered.</p>
+  <p style="font-size:0.82rem;color:var(--muted);">Nothing is connecting to this realm.</p>
+</div>
+{% endif %}
+<div id="clients-empty-filter" style="display:none;padding:64px 0;text-align:center;">
+  <p style="font-size:0.9rem;font-weight:500;color:var(--text-strong);">No clients match the filter.</p>
+</div>
+
+<script>
+function filterClients() {
+  const q = document.getElementById('search').value.toLowerCase();
+  let visible = 0;
+  document.querySelectorAll('#tbl tbody tr[data-name]').forEach(row => {
+    const show = !q || row.dataset.name.includes(q);
+    row.style.display = show ? '' : 'none';
+    if (show) visible++;
+  });
+  const filterEmpty = document.getElementById('clients-empty-filter');
+  const total = document.querySelectorAll('#tbl tbody tr[data-name]').length;
+  if (filterEmpty) filterEmpty.style.display = visible === 0 && total > 0 ? '' : 'none';
+}
+
+(function(){
+  const tbody = document.querySelector('#tbl tbody');
+  document.querySelectorAll('#tbl thead th.sortable').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = parseInt(th.dataset.col);
+      const asc = !(th.classList.contains('sorted') && th.dataset.dir === 'asc');
+      document.querySelectorAll('#tbl thead th').forEach(h => {
+        h.classList.remove('sorted');
+        if (h.querySelector('.sort-ind')) h.querySelector('.sort-ind').textContent = '▲';
+      });
+      th.classList.add('sorted');
+      th.dataset.dir = asc ? 'asc' : 'desc';
+      th.querySelector('.sort-ind').textContent = asc ? '▲' : '▼';
+      const rows = [...tbody.querySelectorAll('tr[data-name]')];
+      rows.sort((a, b) => {
+        const x = a.cells[col].innerText.trim().toLowerCase();
+        const y = b.cells[col].innerText.trim().toLowerCase();
+        return asc ? x.localeCompare(y) : y.localeCompare(x);
+      });
+      rows.forEach(r => tbody.appendChild(r));
+    });
+  });
+})();
+</script>
+{% endblock %}

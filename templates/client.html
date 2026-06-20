@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}{{ client.client_id }} — Grafter{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <a href="/clients?realm={{ realm }}" style="font-size:0.82rem; color:var(--muted);">← Clients</a>
+    <h1 style="margin-top:8px; margin-bottom:4px;">{{ client.client_id }}</h1>
+    {% if client.name %}
+      <div style="color:var(--muted); font-size:0.875rem;">{{ client.name }}</div>
+    {% endif %}
+  </div>
+  <div style="display:flex; gap:8px; align-items:center;">
+    <span class="dot {% if client.enabled %}dot-on{% else %}dot-off{% endif %}"></span>
+    {% if client.enabled %}
+      <span style="color:var(--accent); font-size:0.84rem; font-weight:500;">active</span>
+    {% else %}
+      <span style="color:var(--muted); font-size:0.84rem;">disabled</span>
+    {% endif %}
+    {% if client.public_client %}
+      <span class="pill pill-gray">public</span>
+    {% elif client.service_accounts_enabled %}
+      <span class="pill pill-teal">service account</span>
+    {% else %}
+      <span class="pill pill-blue">confidential</span>
+    {% endif %}
+  </div>
+</div>
+
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+
+  <!-- Settings form -->
+  <div class="card">
+    <h2>Settings</h2>
+    <form method="post" action="/clients/{{ realm }}/{{ client.id }}/edit">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}">
+
+      <div class="field" style="display:flex; align-items:center; gap:10px;">
+        <input type="checkbox" name="enabled" id="enabled" {% if client.enabled %}checked{% endif %}>
+        <label for="enabled" style="margin:0; color:var(--text);">Client enabled</label>
+      </div>
+
+      <div class="field">
+        <label>Valid redirect URIs <span style="color:var(--muted); font-weight:400;">(one per line)</span></label>
+        <textarea name="redirect_uris" rows="5" style="width:100%; resize:vertical; font-size:0.82rem; font-family:monospace;">{{ client.redirect_uris | join(sep="\n") }}</textarea>
+      </div>
+
+      <div class="field">
+        <label>Web origins <span style="color:var(--muted); font-weight:400;">(one per line)</span></label>
+        <textarea name="web_origins" rows="3" style="width:100%; resize:vertical; font-size:0.82rem; font-family:monospace;">{{ client.web_origins | join(sep="\n") }}</textarea>
+      </div>
+
+      <button type="submit" class="btn btn-primary">Save</button>
+    </form>
+  </div>
+
+  <!-- Info + secret -->
+  <div>
+    <div class="card">
+      <h2>Info</h2>
+      <table style="font-size:0.84rem;">
+        <tbody>
+          <tr>
+            <td style="color:var(--muted); padding:6px 16px 6px 0; white-space:nowrap;">Internal ID</td>
+            <td><code style="font-size:0.78rem;">{{ client.id }}</code></td>
+          </tr>
+          <tr>
+            <td style="color:var(--muted); padding:6px 16px 6px 0;">Protocol</td>
+            <td style="text-transform:uppercase; letter-spacing:0.3px; font-size:0.8rem;">{{ client.protocol | default(value='—') }}</td>
+          </tr>
+          {% if client.description %}
+          <tr>
+            <td style="color:var(--muted); padding:6px 16px 6px 0;">Description</td>
+            <td>{{ client.description }}</td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if not client.public_client %}
+    <div class="card">
+      <h2>Client secret</h2>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <input type="password" id="secret-field" value="••••••••••••••••"
+               readonly style="flex:1; font-family:monospace; font-size:0.82rem; cursor:default;">
+        <button class="btn btn-ghost btn-sm" onclick="revealSecret(this)">Reveal</button>
+      </div>
+      <p style="margin-top:10px; font-size:0.78rem; color:var(--muted2);">
+        Secret is fetched on demand and not stored by Grafter.
+      </p>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<script>
+async function revealSecret(btn) {
+  btn.disabled = true;
+  btn.textContent = '…';
+  try {
+    const res = await fetch('/clients/{{ realm }}/{{ client.id }}/secret');
+    const data = await res.json();
+    const field = document.getElementById('secret-field');
+    field.type = 'text';
+    field.value = data.secret || '(no secret)';
+    btn.textContent = 'Hide';
+    btn.onclick = () => {
+      field.type = 'password';
+      field.value = '••••••••••••••••';
+      btn.textContent = 'Reveal';
+      btn.onclick = () => revealSecret(btn);
+      btn.disabled = false;
+    };
+    btn.disabled = false;
+  } catch {
+    btn.textContent = 'Error';
+    btn.disabled = false;
+  }
+}
+</script>
+{% endblock %}

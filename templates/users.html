@@ -1,0 +1,284 @@
+{% extends "base.html" %}
+{% block title %}Users — Grafter{% endblock %}
+
+{% block content %}
+<style>
+  /* Filter bar */
+  .filter-bar { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 16px; }
+  .filter-group { display: flex; flex-direction: column; }
+  .filter-group select, .filter-group input { width: 100%; }
+  .fg-realm  { width: 160px; }
+  .fg-search { flex: 1; min-width: 220px; }
+  .fg-status { width: 150px; }
+  .fg-team   { width: 170px; }
+
+  /* Table meta row */
+  .table-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .table-meta-count { font-size: 0.78rem; color: var(--muted); }
+
+  /* Bulk bar */
+  @keyframes bulk-in { from { transform: translateY(-8px); } to { transform: translateY(0); } }
+  @media (prefers-reduced-motion: no-preference) { #bulk-bar { animation: bulk-in 0.32s cubic-bezier(0.16,1,0.3,1); } }
+  @media (prefers-reduced-motion: reduce) { tbody tr:hover .dot-on { animation: none; } }
+</style>
+
+<input type="hidden" id="csrf-token" value="{{ csrf }}">
+
+<div class="page-header">
+  <h1>Users</h1>
+  {% if is_admin %}
+  <a href="/users/new" class="btn btn-primary">+ New user</a>
+  {% endif %}
+</div>
+
+<!-- Filter bar -->
+<div class="filter-bar">
+  <div class="filter-group fg-realm">
+    <label>Realm</label>
+    <select id="f-realm" onchange="filterTable()">
+      <option value="">All realms</option>
+      {% for r in realms %}
+        <option value="{{ r.name }}" {% if r.name == current_realm %}selected{% endif %}>
+          {{ r.display_name | default(value=r.name) }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="filter-group fg-search">
+    <label>Search</label>
+    <input type="search" id="search" placeholder="username or name…" oninput="filterTable()">
+  </div>
+  <div class="filter-group fg-status">
+    <label>Status</label>
+    <select id="f-status" onchange="filterTable()">
+      <option value="">All</option>
+      <option value="active">Active</option>
+      <option value="disabled">Disabled</option>
+    </select>
+  </div>
+  <div class="filter-group fg-team">
+    <label>Team</label>
+    <select id="f-team" onchange="filterTable()">
+      <option value="">All teams</option>
+      {% for t in teams %}
+        <option value="{{ t }}">{{ t }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="filter-group">
+    <label>&nbsp;</label>
+    <button class="btn btn-ghost" onclick="clearFilters()">Clear</button>
+  </div>
+</div>
+
+<!-- Bulk action bar (hidden until rows checked) -->
+<div id="bulk-bar" style="display:none; align-items:center; gap:10px; padding:10px 16px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); margin-bottom:14px; flex-wrap:wrap;">
+  <span id="bulk-count" style="font-size:0.82rem; font-weight:600; color:var(--text); min-width:90px;"></span>
+  <button class="btn btn-success btn-sm" onclick="bulkSetEnabled(true)">Enable</button>
+  <button class="btn btn-danger btn-sm" onclick="bulkSetEnabled(false)">Disable</button>
+  <div style="display:flex; gap:6px; align-items:center; border-left:1px solid var(--border); padding-left:10px;">
+    <input type="text" id="bulk-team-input" placeholder="Team name…" style="width:150px; padding:5px 10px; font-size:0.82rem;">
+    <button class="btn btn-teal btn-sm" onclick="bulkSetTeam()">Set team</button>
+  </div>
+  <button class="btn btn-ghost btn-sm" style="margin-left:auto;" onclick="clearSelection()">Cancel</button>
+</div>
+
+<!-- Table -->
+<div class="table-meta">
+  <span id="row-count" class="table-meta-count">—</span>
+</div>
+
+<div class="table-wrap">
+  <table id="tbl">
+    <thead>
+      <tr>
+        <th style="width:38px; padding:11px 12px;"><input type="checkbox" id="select-all" onchange="toggleAll(this)"></th>
+        <th style="width:42px;">#</th>
+        <th class="sortable sorted" data-col="2" data-dir="asc">Username<span class="sort-ind">▲</span></th>
+        <th class="sortable" data-col="3">Name<span class="sort-ind">▲</span></th>
+        <th class="col-realm">Realm</th>
+        <th class="sortable" data-col="5">Status<span class="sort-ind">▲</span></th>
+        <th class="sortable" data-col="6">Team<span class="sort-ind">▲</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+      {% set team = u.attributes.team | default(value=[]) | first | default(value='') %}
+      <tr data-row
+          data-id="{{ u.id }}"
+          data-realm="{{ u.realm }}"
+          data-username="{{ u.username | lower }}"
+          data-name="{{ u.first_name | default(value='') | lower }} {{ u.last_name | default(value='') | lower }}"
+          data-status="{% if u.enabled %}active{% else %}disabled{% endif %}"
+          data-team="{{ team | lower }}">
+        <td style="padding:12px;">
+          <input type="checkbox" class="row-cb" data-id="{{ u.id }}" data-realm="{{ u.realm }}" onchange="onCheck()">
+        </td>
+        <td style="color:var(--muted); font-size:0.76rem; font-variant-numeric:tabular-nums; padding-right:0;">{{ loop.index }}</td>
+        <td>
+          <a href="/users/{{ u.realm }}/{{ u.id }}" class="link-primary">{{ u.username }}</a>
+        </td>
+        <td style="color:var(--text);">
+          {{ u.first_name | default(value='') }} {{ u.last_name | default(value='') }}
+        </td>
+        <td class="col-realm" style="color:var(--muted); font-size:0.8rem;">{{ u.realm }}</td>
+        <td>
+          <span class="dot {% if u.enabled %}dot-on{% else %}dot-off{% endif %}"></span>
+          <span style="{% if not u.enabled %}color:var(--muted);{% endif %}">
+            {% if u.enabled %}active{% else %}disabled{% endif %}
+          </span>
+        </td>
+        <td style="color:var(--teal); font-size:0.84rem;">
+          {% if team %}{{ team }}{% else %}<span style="color:var(--muted2);">—</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if not users %}
+<div style="padding:64px 0;text-align:center;">
+  <p style="font-size:0.9rem;font-weight:500;color:var(--text-strong);margin-bottom:6px;">No users in this realm.</p>
+  <p style="font-size:0.82rem;color:var(--muted);">The realm exists. No one is in it.</p>
+</div>
+{% endif %}
+<div id="users-empty-filter" style="display:none;padding:64px 0;text-align:center;">
+  <p style="font-size:0.9rem;font-weight:500;color:var(--text-strong);">No users match the filter.</p>
+</div>
+
+<script>
+const CSRF = document.getElementById('csrf-token').value;
+
+function filterTable() {
+  const search = document.getElementById('search').value.toLowerCase();
+  const realm  = document.getElementById('f-realm').value;
+  const status = document.getElementById('f-status').value;
+  const team   = document.getElementById('f-team').value.toLowerCase();
+
+  // Show/hide realm column — redundant when filtering by one realm
+  document.querySelectorAll('.col-realm').forEach(el => {
+    el.style.display = realm ? 'none' : '';
+  });
+
+  let visible = 0;
+  document.querySelectorAll('tr[data-row]').forEach(row => {
+    const match =
+      (!search || row.dataset.username.includes(search) || row.dataset.name.includes(search)) &&
+      (!realm  || row.dataset.realm  === realm) &&
+      (!status || row.dataset.status === status) &&
+      (!team   || row.dataset.team.includes(team));
+    row.style.display = match ? '' : 'none';
+    if (match) visible++;
+  });
+
+  const total = document.querySelectorAll('tr[data-row]').length;
+  document.getElementById('row-count').textContent =
+    visible === total ? `${total} users` : `${visible} of ${total} users`;
+
+  const filterEmpty = document.getElementById('users-empty-filter');
+  if (filterEmpty) filterEmpty.style.display = visible === 0 && total > 0 ? '' : 'none';
+
+  updateBulkBar();
+}
+
+function clearFilters() {
+  ['search','f-realm','f-status','f-team'].forEach(id => {
+    const el = document.getElementById(id);
+    el.value = el.tagName === 'INPUT' ? '' : '';
+  });
+  filterTable();
+}
+
+function toggleAll(cb) {
+  document.querySelectorAll('tr[data-row]:not([style*="display: none"]) .row-cb')
+    .forEach(c => { c.checked = cb.checked; c.closest('tr').classList.toggle('is-selected', cb.checked); });
+  updateBulkBar();
+}
+
+function onCheck() {
+  const cbs    = document.querySelectorAll('.row-cb');
+  const checked = document.querySelectorAll('.row-cb:checked').length;
+  document.getElementById('select-all').indeterminate = checked > 0 && checked < cbs.length;
+  document.getElementById('select-all').checked = checked > 0 && checked === cbs.length;
+  document.querySelectorAll('.row-cb').forEach(c => c.closest('tr').classList.toggle('is-selected', c.checked));
+  updateBulkBar();
+}
+
+function updateBulkBar() {
+  const checked = document.querySelectorAll('.row-cb:checked').length;
+  const bar = document.getElementById('bulk-bar');
+  const wasVisible = bar.style.display === 'flex';
+
+  document.getElementById('bulk-count').textContent = `${checked} selected`;
+
+  if (checked > 0 && !wasVisible) {
+    bar.style.display = 'flex';
+  } else if (checked === 0) {
+    bar.style.display = 'none';
+  }
+}
+
+function clearSelection() {
+  document.querySelectorAll('.row-cb').forEach(c => { c.checked = false; c.closest('tr').classList.remove('is-selected'); });
+  document.getElementById('select-all').checked = false;
+  updateBulkBar();
+}
+
+// Sortable column headers
+(function(){
+  const tbody = document.querySelector('#tbl tbody');
+  document.querySelectorAll('#tbl thead th.sortable').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = parseInt(th.dataset.col);
+      const asc = !(th.classList.contains('sorted') && th.dataset.dir === 'asc');
+      document.querySelectorAll('#tbl thead th').forEach(h => { h.classList.remove('sorted'); if (h.querySelector('.sort-ind')) h.querySelector('.sort-ind').textContent = '▲'; });
+      th.classList.add('sorted');
+      th.dataset.dir = asc ? 'asc' : 'desc';
+      th.querySelector('.sort-ind').textContent = asc ? '▲' : '▼';
+      const rows = [...tbody.querySelectorAll('tr[data-row]')];
+      rows.sort((a, b) => {
+        const x = a.cells[col].innerText.trim().toLowerCase();
+        const y = b.cells[col].innerText.trim().toLowerCase();
+        return asc ? x.localeCompare(y) : y.localeCompare(x);
+      });
+      rows.forEach(r => tbody.appendChild(r));
+    });
+  });
+})();
+
+function selectedUsers() {
+  return [...document.querySelectorAll('.row-cb:checked')].map(cb => ({
+    id: cb.dataset.id, realm: cb.dataset.realm
+  }));
+}
+
+async function bulkSetEnabled(enabled) {
+  const users = selectedUsers();
+  if (!users.length) return;
+  const res = await fetch('/users/bulk-edit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ csrf_token: CSRF, users, enabled })
+  });
+  if (res.ok) location.reload();
+  else alert('Failed: ' + await res.text());
+}
+
+async function bulkSetTeam() {
+  const users = selectedUsers();
+  const team = document.getElementById('bulk-team-input').value.trim();
+  if (!users.length || !team) return;
+  const res = await fetch('/users/bulk-edit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ csrf_token: CSRF, users, team })
+  });
+  if (res.ok) location.reload();
+  else alert('Failed: ' + await res.text());
+}
+
+// Init
+filterTable();
+</script>
+{% endblock %}

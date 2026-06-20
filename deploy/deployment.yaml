@@ -1,0 +1,122 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafter
+  namespace: grafter
+  labels:
+    app: grafter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafter
+  template:
+    metadata:
+      labels:
+        app: grafter
+    spec:
+      containers:
+        - name: grafter
+          image: ghcr.io/OWNER/grafter:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: PORT
+              value: "3000"
+            - name: OIDC_ISSUER
+              valueFrom:
+                secretKeyRef:
+                  name: grafter-secret
+                  key: OIDC_ISSUER
+            - name: OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: grafter-secret
+                  key: OIDC_CLIENT_ID
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: grafter-secret
+                  key: OIDC_CLIENT_SECRET
+            - name: OIDC_REDIRECT_URI
+              valueFrom:
+                secretKeyRef:
+                  name: grafter-secret
+                  key: OIDC_REDIRECT_URI
+            - name: KC_ADMIN_URL
+              valueFrom:
+                secretKeyRef:
+                  name: grafter-secret
+                  key: KC_ADMIN_URL
+            - name: KC_ADMIN_REALM
+              valueFrom:
+                secretKeyRef:
+                  name: grafter-secret
+                  key: KC_ADMIN_REALM
+            - name: KC_ADMIN_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: grafter-secret
+                  key: KC_ADMIN_CLIENT_ID
+            - name: KC_ADMIN_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: grafter-secret
+                  key: KC_ADMIN_CLIENT_SECRET
+            - name: IAM_ROLE_ADMIN
+              value: "iam-admin"
+            - name: IAM_ROLE_OPERATOR
+              value: "iam-operator"
+            - name: S3_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: grafter-secret
+                  key: S3_ENDPOINT
+            - name: S3_BUCKET
+              value: "grafter"
+            - name: S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: grafter-secret
+                  key: S3_ACCESS_KEY
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: grafter-secret
+                  key: S3_SECRET_KEY
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: grafter-secret
+                  key: SESSION_SECRET
+            - name: RUST_LOG
+              value: "info"
+          livenessProbe:
+            httpGet:
+              path: /auth/login
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /auth/login
+              port: 3000
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop: ["ALL"]
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault

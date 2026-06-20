@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+{% block title %}Changes — Grafter{% endblock %}
+
+{% block content %}
+<input type="hidden" id="csrf-token" value="{{ csrf }}">
+
+<div class="page-header">
+  <h1>Changes</h1>
+</div>
+
+{% if not changes %}
+<div style="padding:64px 0;text-align:center;">
+  <p style="font-size:0.9rem;font-weight:500;color:var(--text-strong);margin-bottom:6px;">The queue is empty.</p>
+  <p style="font-size:0.82rem;color:var(--muted);">Nothing is waiting for approval.</p>
+</div>
+{% else %}
+
+{% if is_admin %}
+<div id="chg-bulk-bar" style="display:none; align-items:center; gap:10px; padding:10px 16px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); margin-bottom:14px; flex-wrap:wrap;">
+  <span id="chg-bulk-count" style="font-size:0.82rem; font-weight:600; color:var(--text); min-width:90px;"></span>
+  <button class="btn btn-success btn-sm" onclick="bulkApprove()">Approve all</button>
+  <button class="btn btn-danger btn-sm" onclick="openBulkReject()">Reject all</button>
+  <button class="btn btn-ghost btn-sm" style="margin-left:auto;" onclick="clearChangeSelection()">Cancel</button>
+</div>
+{% endif %}
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        {% if is_admin %}<th style="width:38px; padding:11px 12px;"><input type="checkbox" id="chg-select-all" onchange="toggleAllChanges(this)"></th>{% endif %}
+        <th>User</th>
+        <th>Realm</th>
+        <th>Changes</th>
+        <th>Proposed by</th>
+        <th>When</th>
+        <th>Status</th>
+        {% if is_admin %}<th>Actions</th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in changes %}
+      <tr>
+        {% if is_admin %}
+        <td style="padding:12px;">
+          {% if c.status == "pending" %}
+          <input type="checkbox" class="chg-cb" data-id="{{ c.id }}" onchange="onChangeCheck()">
+          {% endif %}
+        </td>
+        {% endif %}
+        <td>
+          <a href="/users/{{ c.realm }}/{{ c.user_id }}" class="link-primary">{{ c.username }}</a>
+        </td>
+        <td style="color:var(--muted); font-size:0.82rem;">{{ c.realm }}</td>
+        <td>
+          {% for f in c.diff %}
+            <div style="font-size:0.8rem; margin-bottom:3px; display:flex; align-items:center; gap:5px;">
+              <code>{{ f.field }}</code>
+              <span style="color:var(--muted2);">{{ f.before | default(value='—') }}</span>
+              <span style="color:var(--muted);">→</span>
+              <span style="color:var(--text-strong); font-weight:500;">{{ f.after }}</span>
+            </div>
+          {% endfor %}
+        </td>
+        <td style="color:var(--text); font-weight:500;">{{ c.proposed_by }}</td>
+        <td style="color:var(--muted2); font-size:0.78rem; white-space:nowrap;">{{ c.proposed_at }}</td>
+        <td>
+          {% if c.status == "pending" %}
+            <span class="pill pill-yellow">pending</span>
+          {% elif c.status == "approved" %}
+            <span class="pill pill-green">approved</span>
+          {% elif c.status == "rejected" %}
+            <span class="pill pill-red">rejected</span>
+            {% if c.reject_reason %}
+              <div style="font-size:0.74rem; color:var(--muted); margin-top:3px;">{{ c.reject_reason }}</div>
+            {% endif %}
+          {% endif %}
+        </td>
+        {% if is_admin %}
+        <td>
+          {% if c.status == "pending" %}
+          <div style="display:flex; gap:6px;">
+            <form method="post" action="/changes/{{ c.id }}/approve">
+              <input type="hidden" name="csrf_token" value="{{ csrf }}">
+              <button type="submit" class="btn btn-success btn-sm">Approve</button>
+            </form>
+            <button type="button" class="btn btn-danger btn-sm"
+                    onclick="openSingleReject('{{ c.id }}', '{{ c.username }}', '{{ c.proposed_by }}')">Reject</button>
+          </div>
+          {% endif %}
+        </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<!-- Reject modal -->
+<div id="reject-overlay" style="display:none; position:fixed; inset:0; background:rgba(6,14,13,0.75); backdrop-filter:blur(6px); z-index:100; align-items:center; justify-content:center;">
+  <div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg); padding:28px 28px 24px; width:100%; max-width:440px; position:relative; box-shadow:0 24px 48px rgba(0,0,0,0.5);">
+    <button onclick="closeRejectModal()" aria-label="Close" style="position:absolute; top:16px; right:16px; background:none; border:none; color:var(--muted); cursor:pointer; font-size:1.1rem; line-height:1; padding:4px;">✕</button>
+    <div style="font-size:1rem; font-weight:700; color:var(--text-strong); margin-bottom:4px;">Reject this change</div>
+    <div id="reject-modal-sub" style="font-size:0.8rem; color:var(--muted); margin-bottom:20px; line-height:1.5;"></div>
+    <div class="field">
+      <label>Reason <span style="color:var(--danger);">*</span></label>
+      <textarea id="reject-reason" placeholder="Reason for rejection." rows="4"
+                style="width:100%; min-height:88px; resize:vertical; font-size:0.84rem; line-height:1.55;"
+                autocomplete="off"></textarea>
+    </div>
+    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px;">
+      <button type="button" class="btn btn-ghost btn-sm" onclick="closeRejectModal()">Cancel</button>
+      <button type="button" class="btn btn-danger btn-sm" onclick="submitReject()">Reject</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const CSRF = document.getElementById('csrf-token').value;
+const overlay = document.getElementById('reject-overlay');
+let rejectCtx = null; // { mode: 'single'|'bulk', ids: string[] }
+
+// ── Checkbox / selection ──────────────────────────────────────────────────────
+
+function getSelectedIds() {
+  return [...document.querySelectorAll('.chg-cb:checked')].map(cb => cb.dataset.id);
+}
+
+function onChangeCheck() {
+  const cbs = document.querySelectorAll('.chg-cb');
+  const checked = document.querySelectorAll('.chg-cb:checked').length;
+  const selectAll = document.getElementById('chg-select-all');
+  if (selectAll) {
+    selectAll.indeterminate = checked > 0 && checked < cbs.length;
+    selectAll.checked = cbs.length > 0 && checked === cbs.length;
+  }
+  cbs.forEach(cb => cb.closest('tr').classList.toggle('is-selected', cb.checked));
+  updateBulkBar();
+}
+
+function toggleAllChanges(cb) {
+  document.querySelectorAll('.chg-cb').forEach(c => {
+    c.checked = cb.checked;
+    c.closest('tr').classList.toggle('is-selected', cb.checked);
+  });
+  updateBulkBar();
+}
+
+function updateBulkBar() {
+  const bar = document.getElementById('chg-bulk-bar');
+  if (!bar) return;
+  const ids = getSelectedIds();
+  document.getElementById('chg-bulk-count').textContent = `${ids.length} selected`;
+  bar.style.display = ids.length > 0 ? 'flex' : 'none';
+}
+
+function clearChangeSelection() {
+  document.querySelectorAll('.chg-cb').forEach(c => {
+    c.checked = false;
+    c.closest('tr').classList.remove('is-selected');
+  });
+  const sa = document.getElementById('chg-select-all');
+  if (sa) { sa.checked = false; sa.indeterminate = false; }
+  updateBulkBar();
+}
+
+// ── Bulk approve ──────────────────────────────────────────────────────────────
+
+async function bulkApprove() {
+  const ids = getSelectedIds();
+  if (!ids.length) return;
+  await Promise.all(ids.map(id => {
+    const body = new URLSearchParams({ csrf_token: CSRF });
+    return fetch(`/changes/${id}/approve`, { method: 'POST', body });
+  }));
+  location.reload();
+}
+
+// ── Reject modal ──────────────────────────────────────────────────────────────
+
+function openSingleReject(id, username, proposedBy) {
+  rejectCtx = { mode: 'single', ids: [id] };
+  document.getElementById('reject-modal-sub').textContent =
+    `Change for ${username} proposed by ${proposedBy}.`;
+  showRejectModal();
+}
+
+function openBulkReject() {
+  const ids = getSelectedIds();
+  if (!ids.length) return;
+  rejectCtx = { mode: 'bulk', ids };
+  document.getElementById('reject-modal-sub').textContent =
+    `${ids.length} changes. One reason applies to all.`;
+  showRejectModal();
+}
+
+function showRejectModal() {
+  document.getElementById('reject-reason').value = '';
+  overlay.style.display = 'flex';
+  setTimeout(() => document.getElementById('reject-reason').focus(), 50);
+}
+
+function closeRejectModal() {
+  overlay.style.display = 'none';
+  rejectCtx = null;
+}
+
+async function submitReject() {
+  if (!rejectCtx) return;
+  const reason = document.getElementById('reject-reason').value.trim();
+  await Promise.all(rejectCtx.ids.map(id => {
+    const body = new URLSearchParams({ csrf_token: CSRF, reason });
+    return fetch(`/changes/${id}/reject`, { method: 'POST', body });
+  }));
+  location.reload();
+}
+
+overlay.addEventListener('click', e => { if (e.target === overlay) closeRejectModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeRejectModal(); });
+document.getElementById('reject-reason').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitReject(); }
+});
+</script>
+{% endblock %}

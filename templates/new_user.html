@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}New User — Grafter{% endblock %}
+
+{% block content %}
+<a href="/users?realm={{ current_realm }}" style="font-size:0.82rem; color:var(--muted);">← Users</a>
+<h1 style="margin:8px 0 24px;">New user</h1>
+
+<div style="max-width:560px;">
+  <div class="card">
+    <form method="post" action="/users/new">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}">
+
+      <div class="field">
+        <label>Realm</label>
+        <select name="realm" style="width:100%;">
+          {% for r in realms %}
+            <option value="{{ r.name }}" {% if r.name == current_realm %}selected{% endif %}>
+              {{ r.display_name | default(value=r.name) }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Username <span style="color:var(--accent);">*</span></label>
+        <input type="text" name="username" required autocomplete="off"
+               placeholder="firstname.lastname" style="width:100%;">
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 14px;">
+        <div class="field">
+          <label>First name</label>
+          <input type="text" name="first_name" style="width:100%;">
+        </div>
+        <div class="field">
+          <label>Last name</label>
+          <input type="text" name="last_name" style="width:100%;">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Email</label>
+        <input type="email" name="email" placeholder="user@domain.ir" style="width:100%;">
+      </div>
+
+      <div class="field">
+        <label>Team</label>
+        <input type="text" name="team" placeholder="DevOps" style="width:100%;">
+      </div>
+
+      <div class="field">
+        <label>Temporary password
+          <span style="color:var(--muted); font-weight:400;">(optional)</span>
+        </label>
+        <input type="password" name="temporary_password" autocomplete="new-password" style="width:100%;">
+      </div>
+
+      <div class="field" style="display:flex; align-items:center; gap:10px; margin-bottom:24px;">
+        <input type="checkbox" name="enabled" id="enabled" checked>
+        <label for="enabled" style="margin:0; color:var(--text);">Account enabled</label>
+      </div>
+
+      <div style="display:flex; gap:10px; align-items:center;">
+        <button type="submit" class="btn btn-primary">Create user</button>
+        <a href="/users?realm={{ current_realm }}" class="btn btn-ghost">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
