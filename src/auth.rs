@@ -144,20 +144,17 @@ pub fn authorization_url(config: &Config, state: &str, nonce: &str) -> String {
 }
 
 pub fn logout_url(config: &Config) -> String {
+    // Derive the app base URL by stripping the known /auth/callback suffix.
     // post_logout_redirect_uri must be registered in Keycloak.
-    // We redirect to /auth/login (the app's own login page), derived from
-    // oidc_redirect_uri by stripping the path and appending the login path.
     let base = config
         .oidc_redirect_uri
-        .find("://")
-        .and_then(|i| config.oidc_redirect_uri[i + 3..].find('/').map(|j| &config.oidc_redirect_uri[..i + 3 + j]))
+        .strip_suffix("/auth/callback")
         .unwrap_or(&config.oidc_redirect_uri);
-    let login_uri = format!("{}/auth/login", base);
     format!(
         "{}/protocol/openid-connect/logout?client_id={}&post_logout_redirect_uri={}",
         config.oidc_issuer,
         urlencoding::encode(&config.oidc_client_id),
-        urlencoding::encode(&login_uri),
+        urlencoding::encode(&format!("{}/auth/login", base)),
     )
 }
 

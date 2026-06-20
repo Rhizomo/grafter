@@ -136,7 +136,7 @@ async fn callback(
 
 async fn logout(State(state): State<AppState>, session: Session) -> impl IntoResponse {
     if let Err(e) = session.flush().await {
-        tracing::error!(error = %e, "failed to flush session on logout — session may remain active in Redis");
+        tracing::warn!(error = %e, "failed to flush session on logout — session may remain active in Redis");
     }
     Redirect::to(&logout_url(&state.config))
 }

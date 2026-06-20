@@ -49,10 +49,8 @@ impl IntoResponse for AppError {
                 tracing::error!(error = %e, "identity provider error");
                 match e {
                     ProviderError::NotFound => (StatusCode::NOT_FOUND, "The requested resource was not found."),
-                    ProviderError::UnexpectedResponse { status, .. } => {
-                        let http_status = StatusCode::from_u16(*status)
-                            .unwrap_or(StatusCode::BAD_GATEWAY);
-                        (http_status, "Identity provider returned an error. Check server logs.")
+                    ProviderError::UnexpectedResponse { .. } => {
+                        (StatusCode::BAD_GATEWAY, "Identity provider returned an error. Check server logs.")
                     }
                     ProviderError::Http(_) => (StatusCode::BAD_GATEWAY, "Could not reach the identity provider."),
                 }
