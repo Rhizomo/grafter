@@ -12,10 +12,10 @@ use uuid::Uuid;
 use crate::{
     auth::{csrf_tokens_equal, new_csrf_token},
     error::AppError,
-    provider::{CreateUser, ListUsersQuery, UpdateUser},
+    provider::{CreateUser, ListUsersQuery},
     routes::{require_admin, require_session},
-    session::{Flash, Role, FLASH_KEY},
-    storage::{AuditEntry, AuditOutcome, ChangeStatus, FieldChange, PendingChange},
+    session::{Flash, FLASH_KEY},
+    storage::{AuditEntry, AuditOutcome, ChangeStatus, FieldChange},
     AppState,
 };
 
@@ -301,68 +301,24 @@ async fn edit_user(
         return Ok(Redirect::to(&format!("/users/{realm}/{id}")));
     }
 
-    let flash = match current_user.role {
-        Role::Admin => {
-            apply_changes(&state, &realm, &id, &diff).await?;
-            state.storage.append_audit(&AuditEntry {
-                id: Uuid::new_v4().to_string(), timestamp: Utc::now(),
-                actor: current_user.username.clone(), action: "update_user".into(),
-                target_realm: realm.clone(), target_user: Some(existing.username.clone()),
-                detail: format!("{} field(s) changed", diff.len()), outcome: AuditOutcome::Success,
-            }).await.map_err(AppError::Internal)?;
-            Flash::success("User updated.")
-        }
-        Role::Operator => {
-            let change = PendingChange {
-                id: Uuid::new_v4().to_string(), realm: realm.clone(), user_id: id.clone(),
-                username: existing.username.clone(), proposed_by: current_user.username.clone(),
-                proposed_at: Utc::now(), status: ChangeStatus::Pending,
-                resolved_by: None, resolved_at: None, reject_reason: None, diff,
-            };
-            state.storage.save_change(&change).await.map_err(AppError::Internal)?;
-            state.storage.append_audit(&AuditEntry {
-                id: Uuid::new_v4().to_string(), timestamp: Utc::now(),
-                actor: current_user.username.clone(), action: "propose_change".into(),
-                target_realm: realm.clone(), target_user: Some(existing.username.clone()),
-                detail: format!("change {} pending approval", change.id), outcome: AuditOutcome::Success,
-            }).await.map_err(AppError::Internal)?;
-            Flash::warning("Change proposed and queued for admin approval.")
-        }
-    };
+    let flash = crate::service::users::propose_or_apply(
+        &current_user.role,
+        &*state.provider,
+        &*state.storage,
+        crate::service::users::EditRequest {
+            realm: &realm,
+            user_id: &id,
+            username: &existing.username,
+            actor: &current_user.username,
+            diff,
+        },
+    )
+    .await?;
 
     session.insert(FLASH_KEY, flash).await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?;
 
     Ok(Redirect::to(&format!("/users/{realm}/{id}")))
-}
-
-async fn apply_changes(state: &AppState, realm: &str, user_id: &str, diff: &[FieldChange]) -> Result<(), AppError> {
-    let mut update = UpdateUser::default();
-    let mut team_change: Option<&str> = None;
-    let mut enabled_change: Option<bool> = None;
-
-    for field in diff {
-        match field.field.as_str() {
-            "first_name" => update.first_name = Some(field.after.clone()),
-            "last_name"  => update.last_name  = Some(field.after.clone()),
-            "email"      => update.email       = Some(field.after.clone()),
-            "enabled"    => enabled_change = Some(field.after == "true"),
-            "team"       => team_change = Some(&field.after),
-            _ => {}
-        }
-    }
-
-    if update.first_name.is_some() || update.last_name.is_some() || update.email.is_some() {
-        state.provider.update_user(realm, user_id, update).await?;
-    }
-    if let Some(enabled) = enabled_change {
-        state.provider.set_user_enabled(realm, user_id, enabled).await?;
-    }
-    if let Some(team) = team_change {
-        state.provider.set_user_attribute(realm, user_id, "team", team).await?;
-    }
-
-    Ok(())
 }
 
 // ── New user ──────────────────────────────────────────────────────────────────

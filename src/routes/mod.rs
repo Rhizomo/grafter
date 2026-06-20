@@ -3,7 +3,7 @@ pub mod changes;
 pub mod clients;
 pub mod users;
 
-use axum::Router;
+use axum::{routing::get, Router};
 use tower_sessions::Session;
 
 use crate::{
@@ -14,6 +14,7 @@ use crate::{
 
 pub fn router(state: AppState) -> Router {
     Router::new()
+        .route("/health", get(|| async { "ok" }))
         .merge(auth::router())
         .merge(users::router())
         .merge(changes::router())

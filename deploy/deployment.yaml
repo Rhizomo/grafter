@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: grafter
-          image: ghcr.io/OWNER/grafter:latest
+          image: ghcr.io/rhizomo/grafter:latest
           ports:
             - containerPort: 3000
           env:
@@ -89,17 +89,22 @@ spec:
                 secretKeyRef:
                   name: grafter-secret
                   key: SESSION_SECRET
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: grafter-secret
+                  key: REDIS_URL
             - name: RUST_LOG
               value: "info"
           livenessProbe:
             httpGet:
-              path: /auth/login
+              path: /health
               port: 3000
             initialDelaySeconds: 5
             periodSeconds: 15
           readinessProbe:
             httpGet:
-              path: /auth/login
+              path: /health
               port: 3000
             initialDelaySeconds: 3
             periodSeconds: 10

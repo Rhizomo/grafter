@@ -14,7 +14,6 @@ use uuid::Uuid;
 use crate::{
     auth::{new_csrf_token, csrf_tokens_equal},
     error::AppError,
-    provider::UpdateUser,
     routes::{require_admin, require_session},
     session::{Flash, FLASH_KEY},
     storage::{AuditEntry, AuditOutcome, ChangeStatus},
@@ -127,31 +126,13 @@ async fn approve(
         return Ok(Redirect::to("/changes"));
     }
 
-    // Batch all field changes into the fewest possible Keycloak API calls.
-    let mut update = UpdateUser::default();
-    let mut enabled_change: Option<bool> = None;
-    let mut team_change: Option<String> = None;
-
-    for field in &change.diff {
-        match field.field.as_str() {
-            "first_name" => update.first_name = Some(field.after.clone()),
-            "last_name"  => update.last_name  = Some(field.after.clone()),
-            "email"      => update.email      = Some(field.after.clone()),
-            "enabled"    => enabled_change    = Some(field.after == "true"),
-            "team"       => team_change       = Some(field.after.clone()),
-            _ => {}
-        }
-    }
-
-    if update.first_name.is_some() || update.last_name.is_some() || update.email.is_some() {
-        state.provider.update_user(&change.realm, &change.user_id, update).await?;
-    }
-    if let Some(enabled) = enabled_change {
-        state.provider.set_user_enabled(&change.realm, &change.user_id, enabled).await?;
-    }
-    if let Some(ref team) = team_change {
-        state.provider.set_user_attribute(&change.realm, &change.user_id, "team", team).await?;
-    }
+    crate::service::changes::apply_change_diff(
+        &*state.provider,
+        &change.realm,
+        &change.user_id,
+        &change.diff,
+    )
+    .await?;
 
     change.status = ChangeStatus::Approved;
     change.resolved_by = Some(current_user.username.clone());

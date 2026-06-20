@@ -3,6 +3,7 @@ mod config;
 mod error;
 mod provider;
 mod routes;
+mod service;
 mod session;
 mod storage;
 
