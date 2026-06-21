@@ -188,6 +188,7 @@ pub trait IdentityProvider: Send + Sync + 'static {
     // Realm roles
     async fn list_realm_roles(&self, realm: &str) -> ProviderResult<Vec<Role>>;
     async fn get_user_realm_roles(&self, realm: &str, user_id: &str) -> ProviderResult<Vec<Role>>;
+    async fn list_role_users(&self, realm: &str, role_name: &str) -> ProviderResult<Vec<User>>;
     async fn assign_realm_role(
         &self,
         realm: &str,

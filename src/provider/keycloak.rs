@@ -544,6 +544,16 @@ impl IdentityProvider for KeycloakProvider {
         Ok(roles.into_iter().map(kc_role_to_role).collect())
     }
 
+    async fn list_role_users(&self, realm: &str, role_name: &str) -> ProviderResult<Vec<User>> {
+        let url = format!(
+            "{}/roles/{}/users?max=500",
+            self.admin_url(realm),
+            urlencoding::encode(role_name)
+        );
+        let users: Vec<KcUser> = self.get(&url).await?;
+        Ok(users.into_iter().map(kc_user_to_user).collect())
+    }
+
     async fn get_user_realm_roles(
         &self,
         realm: &str,

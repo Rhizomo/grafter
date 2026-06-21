@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Admin — Grafter{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Admin</h1>
+  <div style="display:flex;gap:8px;align-items:center;">
+    <label style="margin:0;font-size:0.78rem;">Realm</label>
+    <select onchange="window.location='/admin?realm='+this.value" style="font-size:0.82rem;padding:6px 10px;">
+      {% for r in realms %}
+        <option value="{{ r.name }}" {% if r.name == current_realm %}selected{% endif %}>
+          {{ r.display_name | default(value=r.name) }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+</div>
+
+{% if flash %}
+<div class="flash flash-{{ flash.kind }}">{{ flash.text }}</div>
+{% endif %}
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">
+
+<!-- ── Access list ──────────────────────────────────────────────────────────── -->
+<div>
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <h2 style="margin:0;">Grafter access</h2>
+    </div>
+
+    {% if access_users %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Role</th>
+            <th style="width:80px;"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in access_users %}
+          <tr>
+            <td>
+              <a href="/users/{{ u.realm }}/{{ u.id }}" class="link-primary" style="font-size:0.875rem;">{{ u.username }}</a>
+              {% if u.full_name and u.full_name != u.username %}
+                <div style="font-size:0.76rem;color:var(--muted);">{{ u.full_name }}</div>
+              {% endif %}
+            </td>
+            <td>
+              {% if u.role == "admin" %}
+                <span class="pill pill-teal">admin</span>
+              {% else %}
+                <span class="pill pill-yellow">operator</span>
+              {% endif %}
+            </td>
+            <td>
+              <form method="post" action="/admin/revoke" onsubmit="return confirm('Revoke access for {{ u.username }}?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf }}">
+                <input type="hidden" name="realm" value="{{ current_realm }}">
+                <input type="hidden" name="user_id" value="{{ u.id }}">
+                <input type="hidden" name="username" value="{{ u.username }}">
+                <input type="hidden" name="role_name" value="{% if u.role == 'admin' %}{{ admin_role }}{% else %}{{ op_role }}{% endif %}">
+                <input type="hidden" name="role_id" value="">
+                <button type="submit" class="btn btn-danger btn-sm">Revoke</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <p style="color:var(--muted);font-size:0.84rem;">No users have grafter access yet.</p>
+    {% endif %}
+  </div>
+
+  <!-- ── Grant access ─────────────────────────────────────────────────────── -->
+  <div class="card">
+    <h2>Grant access</h2>
+    <form method="post" action="/admin/grant">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}">
+      <input type="hidden" name="realm" value="{{ current_realm }}">
+      <div class="field">
+        <label for="grant-username">Username</label>
+        <input type="text" id="grant-username" name="username" required autocomplete="off"
+               placeholder="firstname.lastname" style="width:100%;">
+      </div>
+      <div class="field">
+        <label for="grant-role">Role</label>
+        <select id="grant-role" name="role" style="width:100%;">
+          <option value="operator">Operator — can propose user creation</option>
+          <option value="admin">Admin — full access, approves changes</option>
+        </select>
+      </div>
+      <button type="submit" class="btn btn-success">Grant access</button>
+    </form>
+  </div>
+</div>
+
+<!-- ── Activity log ─────────────────────────────────────────────────────────── -->
+<div class="card" style="margin-bottom:0;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+    <h2 style="margin:0;">Activity log</h2>
+    <form method="get" action="/admin" style="display:flex;gap:6px;align-items:center;">
+      <input type="hidden" name="realm" value="{{ current_realm }}">
+      <input type="date" name="log_date" value="{{ log_date }}" max="{{ today }}"
+             style="font-size:0.78rem;padding:4px 8px;" onchange="this.form.submit()">
+    </form>
+  </div>
+
+  {% if audit %}
+  <div style="display:flex;flex-direction:column;gap:6px;max-height:600px;overflow-y:auto;">
+    {% for e in audit %}
+    <div style="padding:10px 12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border);">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:0.78rem;font-weight:600;color:var(--text-strong);">{{ e.actor }}</span>
+          <span class="pill pill-{% if e.action contains 'revoke' or e.action contains 'reject' %}red{% elif e.action contains 'grant' or e.action contains 'approve' or e.action contains 'create' %}green{% else %}gray{% endif %}" style="font-size:0.68rem;">{{ e.action | replace(from="_", to=" ") }}</span>
+          {% if e.target_user %}
+            <span style="font-size:0.78rem;color:var(--muted);">→ {{ e.target_user }}</span>
+          {% endif %}
+        </div>
+        <span style="font-size:0.72rem;color:var(--muted2);white-space:nowrap;">{{ e.timestamp }}</span>
+      </div>
+      {% if e.detail %}
+        <div style="font-size:0.75rem;color:var(--muted);margin-top:4px;">{{ e.detail }}</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+    <p style="color:var(--muted);font-size:0.84rem;">No activity on {{ log_date }}.</p>
+  {% endif %}
+</div>
+
+</div>
+
+<script>
+// Revoke needs the role ID — fetch it from the role name via the role list API isn't feasible here.
+// Instead, use an empty string and let the server look it up by name.
+// The server's remove_realm_role takes id+name; name is sufficient for the KC delete body.
+// We already pass role_name; patch the hidden role_id to match what the server needs.
+</script>
+{% endblock %}
