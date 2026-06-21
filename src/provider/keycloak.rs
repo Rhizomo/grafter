@@ -350,10 +350,10 @@ impl IdentityProvider for KeycloakProvider {
 
         let mut attrs = user.attributes.clone();
         if let Some(ref v) = user.phone_number {
-            if !v.is_empty() { attrs.insert("phoneNumber".to_string(), vec![v.clone()]); }
+            if !v.is_empty() { attrs.insert("phone_number".to_string(), vec![v.clone()]); }
         }
         if let Some(ref v) = user.personnel_code {
-            if !v.is_empty() { attrs.insert("personnelCode".to_string(), vec![v.clone()]); }
+            if !v.is_empty() { attrs.insert("personnel_code".to_string(), vec![v.clone()]); }
         }
 
         let has_password = user.password.as_ref().map(|p| !p.is_empty()).unwrap_or(false);
@@ -423,10 +423,10 @@ impl IdentityProvider for KeycloakProvider {
         body.insert("enabled".into(),   json!(update.enabled.unwrap_or(cur.enabled)));
         let mut attrs = update.attributes.unwrap_or(cur.attributes);
         if let Some(ref v) = update.phone_number {
-            attrs.insert("phoneNumber".to_string(), vec![v.clone()]);
+            attrs.insert("phone_number".to_string(), vec![v.clone()]);
         }
         if let Some(ref v) = update.personnel_code {
-            attrs.insert("personnelCode".to_string(), vec![v.clone()]);
+            attrs.insert("personnel_code".to_string(), vec![v.clone()]);
         }
         body.insert("attributes".into(), json!(attrs));
 

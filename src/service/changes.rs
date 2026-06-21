@@ -21,8 +21,8 @@ pub async fn apply_change_diff(
             "email"          => update.email         = Some(field.after.clone()),
             "enabled"        => enabled_change       = Some(field.after == "true"),
             "team"           => attr_changes.push(("team", &field.after)),
-            "phone_number"   => attr_changes.push(("phoneNumber", &field.after)),
-            "personnel_code" => attr_changes.push(("personnelCode", &field.after)),
+            "phone_number"   => attr_changes.push(("phone_number", &field.after)),
+            "personnel_code" => attr_changes.push(("personnel_code", &field.after)),
             _ => {}
         }
     }

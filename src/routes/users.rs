@@ -310,7 +310,7 @@ async fn edit_user(
         }
     }
 
-    let current_phone = existing.attributes.get("phoneNumber").and_then(|v| v.first()).cloned();
+    let current_phone = existing.attributes.get("phone_number").and_then(|v| v.first()).cloned();
     let new_phone = form.phone_number.as_ref().filter(|s| !s.is_empty());
     if new_phone.map(|s| s.as_str()) != current_phone.as_deref() {
         if let Some(v) = new_phone {
@@ -318,7 +318,7 @@ async fn edit_user(
         }
     }
 
-    let current_personnel = existing.attributes.get("personnelCode").and_then(|v| v.first()).cloned();
+    let current_personnel = existing.attributes.get("personnel_code").and_then(|v| v.first()).cloned();
     let new_personnel = form.personnel_code.as_ref().filter(|s| !s.is_empty());
     if new_personnel.map(|s| s.as_str()) != current_personnel.as_deref() {
         if let Some(v) = new_personnel {

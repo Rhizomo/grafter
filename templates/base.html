@@ -290,6 +290,17 @@
 
 <nav>
   <div class="brand">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="color:var(--teal);flex-shrink:0;">
+      <path d="M12 20V13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M12 13L5 5.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M12 13V4.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M12 13L19 5.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+      <circle cx="5" cy="5" r="1.8" fill="currentColor"/>
+      <circle cx="12" cy="4" r="1.8" fill="currentColor"/>
+      <circle cx="19" cy="5" r="1.8" fill="currentColor"/>
+      <circle cx="12" cy="20" r="2" fill="currentColor"/>
+      <circle cx="12" cy="13" r="1.5" fill="currentColor"/>
+    </svg>
     <span class="brand-parent">rhizomo</span>
     <span class="brand-sep">/</span>
     <span class="brand-name">grafter</span>
@@ -311,7 +322,7 @@
     {% else %}
       <span class="role-badge operator">operator</span>
     {% endif %}
-    <a href="/auth/logout" class="btn-nav-logout">logout</a>
+    <a href="/auth/logout" class="btn-nav-logout">Sign out</a>
   </div>
   {% endif %}
 </nav>
@@ -320,19 +331,21 @@
   {% if flash %}
   <div id="flash-banner" class="flash flash-{{ flash.kind }} flash-banner" role="alert">
     <span class="flash-banner-text">{{ flash.text }}</span>
-    <button class="flash-dismiss" aria-label="Dismiss" onclick="dismissFlash()">✕</button>
+    <button class="flash-dismiss" id="flash-dismiss" aria-label="Dismiss">✕</button>
   </div>
   <script>
     (function(){
-      var t = setTimeout(dismissFlash, 4000);
       function dismissFlash() {
-        clearTimeout(t);
         var el = document.getElementById('flash-banner');
         if (!el) return;
         el.style.animation = 'flash-fade 0.35s ease forwards';
         setTimeout(function(){ el.remove(); }, 360);
       }
-      window.dismissFlash = dismissFlash;
+      var t = setTimeout(dismissFlash, 4000);
+      document.getElementById('flash-dismiss').addEventListener('click', function() {
+        clearTimeout(t);
+        dismissFlash();
+      });
     })();
   </script>
   {% endif %}

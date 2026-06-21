@@ -15,8 +15,8 @@
       <input type="hidden" name="csrf_token" value="{{ csrf }}">
 
       <div class="field">
-        <label>Realm</label>
-        <select name="realm" style="width:100%;">
+        <label for="new_realm">Realm</label>
+        <select id="new_realm" name="realm" autocomplete="off" style="width:100%;">
           {% for r in realms %}
             <option value="{{ r.name }}" {% if r.name == current_realm %}selected{% endif %}>
               {{ r.display_name | default(value=r.name) }}
@@ -26,30 +26,31 @@
       </div>
 
       <div class="field">
-        <label>Username <span style="color:var(--accent);">*</span></label>
-        <input type="text" name="username" required autocomplete="off"
+        <label for="new_username">Username <span style="color:var(--accent);">*</span></label>
+        <input type="text" id="new_username" name="username" required autocomplete="username"
                placeholder="firstname.lastname" style="width:100%;">
       </div>
 
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 14px;">
         <div class="field">
-          <label>First name</label>
-          <input type="text" name="first_name" style="width:100%;">
+          <label for="new_first_name">First name</label>
+          <input type="text" id="new_first_name" name="first_name" autocomplete="given-name" style="width:100%;">
         </div>
         <div class="field">
-          <label>Last name</label>
-          <input type="text" name="last_name" style="width:100%;">
+          <label for="new_last_name">Last name</label>
+          <input type="text" id="new_last_name" name="last_name" autocomplete="family-name" style="width:100%;">
         </div>
       </div>
 
       <div class="field">
-        <label>Email</label>
-        <input type="email" name="email" placeholder="user@domain.ir" style="width:100%;">
+        <label for="new_email">Email</label>
+        <input type="email" id="new_email" name="email" autocomplete="email" placeholder="user@domain.ir" style="width:100%;">
       </div>
 
       <div class="field">
-        <label>Team</label>
-        <input type="text" name="team" list="team-list" placeholder="DevOps" style="width:100%;">
+        <label for="new_team">Team</label>
+        <input type="text" id="new_team" name="team" list="team-list" autocomplete="organization"
+               placeholder="DevOps" style="width:100%;">
         <datalist id="team-list">
           {% for t in teams %}<option value="{{ t }}">{% endfor %}
         </datalist>
@@ -57,20 +58,20 @@
 
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 14px;">
         <div class="field">
-          <label>Phone number</label>
-          <input type="text" name="phone_number" placeholder="+98…" style="width:100%;">
+          <label for="new_phone">Phone number</label>
+          <input type="text" id="new_phone" name="phone_number" autocomplete="tel" placeholder="+98…" style="width:100%;">
         </div>
         <div class="field">
-          <label>Personnel code</label>
-          <input type="text" name="personnel_code" style="width:100%;">
+          <label for="new_personnel_code">Personnel code</label>
+          <input type="text" id="new_personnel_code" name="personnel_code" autocomplete="off" style="width:100%;">
         </div>
       </div>
 
       <div class="field">
-        <label>Password
+        <label for="new_password">Password
           <span style="color:var(--muted); font-weight:400;">(optional)</span>
         </label>
-        <input type="password" name="password" autocomplete="new-password" style="width:100%;">
+        <input type="password" id="new_password" name="password" autocomplete="new-password" style="width:100%;">
       </div>
       <div class="field" style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
         <input type="checkbox" name="password_temporary" id="password_temporary" checked>
