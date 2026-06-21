@@ -293,16 +293,15 @@ impl IdentityProvider for KeycloakProvider {
     }
 
     async fn list_realms(&self) -> ProviderResult<Vec<Realm>> {
-        let url = format!("{}/admin/realms", self.admin_url);
-        let realms: Vec<KcRealm> = self.get(&url).await?;
-        Ok(realms
-            .into_iter()
-            .map(|r| Realm {
-                id: r.id,
-                name: r.realm,
-                display_name: r.display_name,
-            })
-            .collect())
+        // GET /admin/realms requires master-realm admin. A realm-scoped service
+        // account can only read its own realm via /admin/realms/{realm}.
+        let url = format!("{}/admin/realms/{}", self.admin_url, self.admin_realm);
+        let r: KcRealm = self.get(&url).await?;
+        Ok(vec![Realm {
+            id: r.id,
+            name: r.realm,
+            display_name: r.display_name,
+        }])
     }
 
     async fn list_users(&self, realm: &str, query: &ListUsersQuery) -> ProviderResult<Vec<User>> {
