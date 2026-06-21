@@ -257,6 +257,8 @@ struct EditForm {
     email: Option<String>,
     enabled: Option<String>,
     team: Option<String>,
+    phone_number: Option<String>,
+    personnel_code: Option<String>,
 }
 
 async fn edit_user(
@@ -305,6 +307,22 @@ async fn edit_user(
     if form.team.as_deref() != current_team.as_deref() {
         if let Some(v) = &form.team {
             diff.push(FieldChange { field: "team".into(), before: current_team, after: v.clone() });
+        }
+    }
+
+    let current_phone = existing.attributes.get("phoneNumber").and_then(|v| v.first()).cloned();
+    let new_phone = form.phone_number.as_ref().filter(|s| !s.is_empty());
+    if new_phone.map(|s| s.as_str()) != current_phone.as_deref() {
+        if let Some(v) = new_phone {
+            diff.push(FieldChange { field: "phone_number".into(), before: current_phone, after: v.clone() });
+        }
+    }
+
+    let current_personnel = existing.attributes.get("personnelCode").and_then(|v| v.first()).cloned();
+    let new_personnel = form.personnel_code.as_ref().filter(|s| !s.is_empty());
+    if new_personnel.map(|s| s.as_str()) != current_personnel.as_deref() {
+        if let Some(v) = new_personnel {
+            diff.push(FieldChange { field: "personnel_code".into(), before: current_personnel, after: v.clone() });
         }
     }
 
@@ -382,7 +400,10 @@ struct NewUserForm {
     last_name: Option<String>,
     email: Option<String>,
     team: Option<String>,
-    temporary_password: Option<String>,
+    phone_number: Option<String>,
+    personnel_code: Option<String>,
+    password: Option<String>,
+    password_temporary: Option<String>,
     enabled: Option<String>,
 }
 
@@ -407,7 +428,8 @@ async fn create_user(
         }
     }
 
-    let password = form.temporary_password.filter(|p| !p.is_empty());
+    let password = form.password.filter(|p| !p.is_empty());
+    let password_temporary = form.password_temporary.as_deref() == Some("on");
 
     let new_user = CreateUser {
         username: form.username.clone(),
@@ -415,7 +437,10 @@ async fn create_user(
         first_name: form.first_name.filter(|f| !f.is_empty()),
         last_name: form.last_name.filter(|l| !l.is_empty()),
         enabled: form.enabled.as_deref() == Some("on"),
-        temporary_password: password,
+        password,
+        password_temporary,
+        phone_number: form.phone_number.filter(|v| !v.is_empty()),
+        personnel_code: form.personnel_code.filter(|v| !v.is_empty()),
         attributes: attrs,
     };
 

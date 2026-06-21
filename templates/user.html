@@ -57,10 +57,20 @@
       </div>
       <div class="field">
         <label>Team</label>
-        <input type="text" name="team" list="team-list" value="{{ subject.attributes.team | default(value=[]) | first | default(value='') }}" placeholder="e.g. DevOps" autocomplete="off" style="width:100%;">
+        <input type="text" name="team" list="team-list" value="{{ subject.attributes.team | default(value=[]) | first | default(value='') }}" placeholder="e.g. DevOps" style="width:100%;">
         <datalist id="team-list">
           {% for t in teams %}<option value="{{ t }}">{% endfor %}
         </datalist>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 14px;">
+        <div class="field">
+          <label>Phone number</label>
+          <input type="text" name="phone_number" value="{{ subject.attributes.phoneNumber | default(value=[]) | first | default(value='') }}" placeholder="+98…" style="width:100%;">
+        </div>
+        <div class="field">
+          <label>Personnel code</label>
+          <input type="text" name="personnel_code" value="{{ subject.attributes.personnelCode | default(value=[]) | first | default(value='') }}" style="width:100%;">
+        </div>
       </div>
       <div class="field" style="display:flex; align-items:center; gap:10px;">
         <input type="checkbox" name="enabled" id="enabled" {% if subject.enabled %}checked{% endif %}>

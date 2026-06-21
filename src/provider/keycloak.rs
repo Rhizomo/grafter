@@ -348,21 +348,43 @@ impl IdentityProvider for KeycloakProvider {
     async fn create_user(&self, realm: &str, user: CreateUser) -> ProviderResult<User> {
         let url = format!("{}/users", self.admin_url(realm));
 
-        let body = json!({
-            "username": user.username,
-            "email": user.email,
-            "firstName": user.first_name,
-            "lastName": user.last_name,
-            "enabled": user.enabled,
-            "attributes": user.attributes,
-            "credentials": user.temporary_password.map(|p| vec![json!({
-                "type": "password",
-                "value": p,
-                "temporary": true
-            })]).unwrap_or_default(),
-        });
+        let mut attrs = user.attributes.clone();
+        if let Some(ref v) = user.phone_number {
+            if !v.is_empty() { attrs.insert("phoneNumber".to_string(), vec![v.clone()]); }
+        }
+        if let Some(ref v) = user.personnel_code {
+            if !v.is_empty() { attrs.insert("personnelCode".to_string(), vec![v.clone()]); }
+        }
 
-        let resp = self.post(&url, &body).await?;
+        let has_password = user.password.as_ref().map(|p| !p.is_empty()).unwrap_or(false);
+
+        let build_body = |with_creds: bool| -> serde_json::Value {
+            let creds = if with_creds && has_password {
+                json!([{"type": "password", "value": user.password.as_deref().unwrap_or(""), "temporary": user.password_temporary}])
+            } else {
+                json!([])
+            };
+            let required_actions: &[&str] = if !with_creds && user.password_temporary { &["UPDATE_PASSWORD"] } else { &[] };
+            json!({
+                "username": user.username,
+                "email": user.email,
+                "firstName": user.first_name,
+                "lastName": user.last_name,
+                "enabled": user.enabled,
+                "attributes": attrs,
+                "credentials": creds,
+                "requiredActions": required_actions,
+            })
+        };
+
+        // For temporary passwords: if the realm password policy rejects the value,
+        // fall back to creating the user without credentials and require UPDATE_PASSWORD.
+        let resp = match self.post(&url, &build_body(true)).await {
+            Err(ProviderError::Validation(_)) if has_password && user.password_temporary => {
+                self.post(&url, &build_body(false)).await?
+            }
+            other => other?,
+        };
 
         // Keycloak returns the new user's URL in the Location header.
         let location = resp
@@ -399,7 +421,14 @@ impl IdentityProvider for KeycloakProvider {
         body.insert("lastName".into(),  json!(update.last_name.or(cur.last_name).unwrap_or_default()));
         body.insert("email".into(),     json!(update.email.or(cur.email).unwrap_or_default()));
         body.insert("enabled".into(),   json!(update.enabled.unwrap_or(cur.enabled)));
-        body.insert("attributes".into(), json!(update.attributes.unwrap_or(cur.attributes)));
+        let mut attrs = update.attributes.unwrap_or(cur.attributes);
+        if let Some(ref v) = update.phone_number {
+            attrs.insert("phoneNumber".to_string(), vec![v.clone()]);
+        }
+        if let Some(ref v) = update.personnel_code {
+            attrs.insert("personnelCode".to_string(), vec![v.clone()]);
+        }
+        body.insert("attributes".into(), json!(attrs));
 
         self.put(&url, &serde_json::Value::Object(body)).await
     }

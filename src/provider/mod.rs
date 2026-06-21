@@ -69,7 +69,10 @@ pub struct CreateUser {
     pub first_name: Option<String>,
     pub last_name: Option<String>,
     pub enabled: bool,
-    pub temporary_password: Option<String>,
+    pub password: Option<String>,
+    pub password_temporary: bool,
+    pub phone_number: Option<String>,
+    pub personnel_code: Option<String>,
     pub attributes: HashMap<String, Vec<String>>,
 }
 
@@ -80,6 +83,8 @@ pub struct UpdateUser {
     pub last_name: Option<String>,
     pub enabled: Option<bool>,
     pub attributes: Option<HashMap<String, Vec<String>>>,
+    pub phone_number: Option<String>,
+    pub personnel_code: Option<String>,
 }
 
 #[derive(Debug, Clone, Default)]

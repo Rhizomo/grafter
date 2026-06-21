@@ -49,17 +49,32 @@
 
       <div class="field">
         <label>Team</label>
-        <input type="text" name="team" list="team-list" placeholder="DevOps" autocomplete="off" style="width:100%;">
+        <input type="text" name="team" list="team-list" placeholder="DevOps" style="width:100%;">
         <datalist id="team-list">
           {% for t in teams %}<option value="{{ t }}">{% endfor %}
         </datalist>
       </div>
 
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 14px;">
+        <div class="field">
+          <label>Phone number</label>
+          <input type="text" name="phone_number" placeholder="+98…" style="width:100%;">
+        </div>
+        <div class="field">
+          <label>Personnel code</label>
+          <input type="text" name="personnel_code" style="width:100%;">
+        </div>
+      </div>
+
       <div class="field">
-        <label>Temporary password
+        <label>Password
           <span style="color:var(--muted); font-weight:400;">(optional)</span>
         </label>
-        <input type="password" name="temporary_password" autocomplete="new-password" style="width:100%;">
+        <input type="password" name="password" autocomplete="new-password" style="width:100%;">
+      </div>
+      <div class="field" style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+        <input type="checkbox" name="password_temporary" id="password_temporary" checked>
+        <label for="password_temporary" style="margin:0; color:var(--text);">Temporary — user must change on next login</label>
       </div>
 
       <div class="field" style="display:flex; align-items:center; gap:10px; margin-bottom:24px;">
