@@ -8,12 +8,6 @@
   <h1>Changes</h1>
 </div>
 
-{% if not is_admin %}
-<div class="flash flash-info" style="margin-bottom:20px;">
-  Showing your submitted proposals. An admin will review and approve or reject them.
-</div>
-{% endif %}
-
 {% if not changes %}
 <div style="padding:64px 0;text-align:center;">
   <p style="font-size:0.9rem;font-weight:500;color:var(--text-strong);margin-bottom:6px;">The queue is empty.</p>

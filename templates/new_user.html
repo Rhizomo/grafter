@@ -100,11 +100,7 @@
       </div>
 
       <div style="display:flex; gap:10px; align-items:center;">
-        {% if is_admin %}
-          <button type="submit" class="btn btn-primary">Create user</button>
-        {% else %}
-          <button type="submit" class="btn btn-primary">Propose user creation</button>
-        {% endif %}
+        <button type="submit" class="btn btn-primary">Create user</button>
         <a href="/users?realm={{ current_realm }}" class="btn btn-ghost">Cancel</a>
       </div>
     </form>
