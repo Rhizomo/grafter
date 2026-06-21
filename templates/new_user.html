@@ -49,10 +49,11 @@
 
       <div class="field">
         <label for="new_team">Team</label>
-        <select id="new_team" name="team" autocomplete="organization" style="width:100%;">
-          <option value="">— none —</option>
-          {% for t in teams %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
-        </select>
+        <input type="text" id="new_team" name="team" list="team-list"
+               autocomplete="organization" placeholder="e.g. DevOps" style="width:100%;">
+        <datalist id="team-list">
+          {% for t in teams %}<option value="{{ t }}">{% endfor %}
+        </datalist>
       </div>
 
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 14px;">
