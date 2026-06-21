@@ -2,10 +2,14 @@
 {% block title %}New User — Grafter{% endblock %}
 
 {% block content %}
-<a href="/users?realm={{ current_realm }}" style="font-size:0.82rem; color:var(--muted);">← Users</a>
+<nav style="display:flex;align-items:center;gap:6px;margin-bottom:16px;font-size:0.78rem;" aria-label="breadcrumb">
+  <a href="/users?realm={{ current_realm }}" style="color:var(--teal);">Users</a>
+  <span style="color:var(--muted2);">/</span>
+  <span style="color:var(--muted);">New user</span>
+</nav>
 <h1 style="margin:8px 0 24px;">New user</h1>
 
-<div style="max-width:560px;">
+<div style="display:grid;grid-template-columns:1fr 300px;gap:28px;align-items:start;max-width:900px;">
   <div class="card">
     <form method="post" action="/users/new">
       <input type="hidden" name="csrf_token" value="{{ csrf }}">
@@ -65,6 +69,24 @@
         <a href="/users?realm={{ current_realm }}" class="btn btn-ghost">Cancel</a>
       </div>
     </form>
+  </div>
+
+  <!-- Context sidebar -->
+  <div style="font-size:0.81rem;color:var(--muted);line-height:1.65;">
+    <h3 style="font-size:0.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px;">After creation</h3>
+    <p>Account is created immediately. Roles and group memberships must be assigned separately — this form does not do that.</p>
+
+    <h3 style="font-size:0.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px;margin-top:22px;">Required</h3>
+    <ul style="list-style:none;display:flex;flex-direction:column;gap:3px;">
+      <li style="padding-left:12px;position:relative;"><span style="position:absolute;left:0;color:var(--muted2);">—</span>Username — must be unique within the realm.</li>
+    </ul>
+
+    <h3 style="font-size:0.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px;margin-top:22px;">Conventions</h3>
+    <p>Usernames are lowercase. <code style="font-family:monospace;font-size:0.77rem;color:var(--text);background:var(--surface2);padding:1px 5px;border-radius:3px;border:1px solid var(--border);">firstname.lastname</code> is the standard. The system does not enforce this.</p>
+    <p style="margin-top:8px;">If "Account enabled" is unchecked, the account exists but cannot authenticate. No notification is sent either way.</p>
+
+    <h3 style="font-size:0.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px;margin-top:22px;">Realm</h3>
+    <p>Determines which services this account can access. Most users belong to <code style="font-family:monospace;font-size:0.77rem;color:var(--text);background:var(--surface2);padding:1px 5px;border-radius:3px;border:1px solid var(--border);">smartech</code>.</p>
   </div>
 </div>
 {% endblock %}

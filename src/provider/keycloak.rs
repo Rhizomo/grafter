@@ -12,6 +12,27 @@ use super::{
 };
 use crate::error::ProviderError;
 
+fn parse_kc_error(status: u16, body: String) -> ProviderError {
+    if status == 409 {
+        let msg = serde_json::from_str::<serde_json::Value>(&body)
+            .ok()
+            .and_then(|v| v["errorMessage"].as_str().map(String::from))
+            .unwrap_or_else(|| "A resource with that identifier already exists.".to_string());
+        return ProviderError::Conflict(msg);
+    }
+    if status == 400 {
+        if let Ok(v) = serde_json::from_str::<serde_json::Value>(&body) {
+            let msg = v["errorMessage"].as_str().map(String::from)
+                .or_else(|| v["error_description"].as_str().map(String::from));
+            if let Some(m) = msg {
+                let field = v["field"].as_str().map(|f| format!("Field \"{f}\": "));
+                return ProviderError::Validation(format!("{}{m}", field.unwrap_or_default()));
+            }
+        }
+    }
+    ProviderError::UnexpectedResponse { status, body }
+}
+
 // ── Token cache ───────────────────────────────────────────────────────────────
 
 #[derive(Default)]
@@ -134,8 +155,8 @@ impl KeycloakProvider {
 
         if !resp.status().is_success() {
             let status = resp.status().as_u16();
-            let body = resp.text().await.unwrap_or_default();
-            return Err(ProviderError::UnexpectedResponse { status, body });
+            let text = resp.text().await.unwrap_or_default();
+            return Err(parse_kc_error(status, text));
         }
 
         Ok(resp)
@@ -153,8 +174,8 @@ impl KeycloakProvider {
 
         if !resp.status().is_success() {
             let status = resp.status().as_u16();
-            let body = resp.text().await.unwrap_or_default();
-            return Err(ProviderError::UnexpectedResponse { status, body });
+            let text = resp.text().await.unwrap_or_default();
+            return Err(parse_kc_error(status, text));
         }
 
         Ok(())
@@ -166,8 +187,8 @@ impl KeycloakProvider {
 
         if !resp.status().is_success() {
             let status = resp.status().as_u16();
-            let body = resp.text().await.unwrap_or_default();
-            return Err(ProviderError::UnexpectedResponse { status, body });
+            let text = resp.text().await.unwrap_or_default();
+            return Err(parse_kc_error(status, text));
         }
 
         Ok(())
