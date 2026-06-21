@@ -67,7 +67,7 @@
         <td style="color:var(--muted); font-size:0.82rem;">{{ c.realm }}</td>
         <td>
           {% for f in c.diff %}
-            {% if f.field != "team_group_id" %}
+            {% if f.field != "team_group_id" and f.field != "password" %}
             <div style="font-size:0.8rem; margin-bottom:3px; display:flex; align-items:center; gap:5px; flex-wrap:wrap;">
               <code>{{ f.field }}</code>
               {% if f.before %}

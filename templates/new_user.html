@@ -14,6 +14,7 @@
     <form method="post" action="/users/new">
       <input type="hidden" name="csrf_token" value="{{ csrf }}">
 
+      {% if is_admin %}
       <div class="field">
         <label for="new_realm">Realm</label>
         <select id="new_realm" name="realm" autocomplete="off" style="width:100%;">
@@ -24,6 +25,9 @@
           {% endfor %}
         </select>
       </div>
+      {% else %}
+      <input type="hidden" name="realm" value="{{ current_realm }}">
+      {% endif %}
 
       <div class="field">
         <label for="new_username">Username <span style="color:var(--accent);">*</span></label>
@@ -71,7 +75,6 @@
         </div>
       </div>
 
-      {% if is_admin %}
       <div class="field">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
           <label for="new_password" style="margin:0;">Password
@@ -90,7 +93,6 @@
         <input type="checkbox" name="password_temporary" id="password_temporary" checked>
         <label for="password_temporary" style="margin:0; color:var(--text);">Temporary — user must change on next login</label>
       </div>
-      {% endif %}
 
       <div class="field" style="display:flex; align-items:center; gap:10px; margin-bottom:24px;">
         <input type="checkbox" name="enabled" id="enabled" checked>

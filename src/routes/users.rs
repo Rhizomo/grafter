@@ -537,6 +537,13 @@ async fn create_user(
                 field: "enabled".into(), before: None,
                 after: if form.enabled.as_deref() == Some("on") { "true" } else { "false" }.into(),
             });
+            if let Some(ref pw) = form.password.filter(|p| !p.is_empty()) {
+                diff.push(FieldChange { field: "password".into(), before: None, after: pw.clone() });
+                diff.push(FieldChange {
+                    field: "password_temporary".into(), before: None,
+                    after: if form.password_temporary.as_deref() == Some("on") { "true" } else { "false" }.into(),
+                });
+            }
 
             let change = PendingChange {
                 id: Uuid::new_v4().to_string(),

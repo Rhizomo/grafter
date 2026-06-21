@@ -140,11 +140,13 @@ async fn approve(
         let email         = get("email");
         let first_name    = get("first_name");
         let last_name     = get("last_name");
-        let team_group_id = get("team_group_id");
-        let team_name     = get("team");
-        let phone_number  = get("phone_number");
+        let team_group_id  = get("team_group_id");
+        let team_name      = get("team");
+        let phone_number   = get("phone_number");
         let personnel_code = get("personnel_code");
-        let enabled       = get("enabled").as_deref() != Some("false");
+        let enabled        = get("enabled").as_deref() != Some("false");
+        let password       = get("password");
+        let password_temporary = get("password_temporary").as_deref() != Some("false");
 
         let mut attrs = std::collections::HashMap::new();
         if let Some(ref name) = team_name {
@@ -159,8 +161,8 @@ async fn approve(
             first_name,
             last_name,
             enabled,
-            password: None,
-            password_temporary: true,
+            password,
+            password_temporary,
             phone_number: None,
             personnel_code: None,
             attributes: attrs,
