@@ -117,7 +117,15 @@
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
         <div style="display:flex;align-items:center;gap:8px;">
           <span style="font-size:0.78rem;font-weight:600;color:var(--text-strong);">{{ e.actor }}</span>
-          <span class="pill pill-{% if e.action contains 'revoke' or e.action contains 'reject' %}red{% elif e.action contains 'grant' or e.action contains 'approve' or e.action contains 'create' %}green{% else %}gray{% endif %}" style="font-size:0.68rem;">{{ e.action | replace(from="_", to=" ") }}</span>
+          {% set ac = e.action %}
+          {% if ac == "revoke_access" or ac == "reject_change" %}
+            {% set pill = "red" %}
+          {% elif ac == "grant_access" or ac == "approve_change" or ac == "create_user" or ac == "propose_create_user" %}
+            {% set pill = "green" %}
+          {% else %}
+            {% set pill = "gray" %}
+          {% endif %}
+          <span class="pill pill-{{ pill }}" style="font-size:0.68rem;">{{ e.action | replace(from="_", to=" ") }}</span>
           {% if e.target_user %}
             <span style="font-size:0.78rem;color:var(--muted);">→ {{ e.target_user }}</span>
           {% endif %}
