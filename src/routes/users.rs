@@ -126,7 +126,7 @@ struct BulkEditBody {
     csrf_token: String,
     users: Vec<BulkUser>,
     enabled: Option<bool>,
-    team: Option<String>,
+    team_group_id: Option<String>,
 }
 
 async fn bulk_edit(
@@ -146,12 +146,31 @@ async fn bulk_edit(
         return Err(AppError::CsrfMismatch);
     }
 
+    // Resolve team group once (all users assumed to be in same realm)
+    let realm = body.users.first().map(|u| u.realm.as_str()).unwrap_or("");
+    let team_assignment: Option<(String, String)> = match &body.team_group_id {
+        Some(gid) if !gid.is_empty() => {
+            let groups = state.provider.list_groups(realm).await?;
+            groups.into_iter().find(|g| g.id == *gid).map(|g| (g.id, g.name))
+        }
+        _ => None,
+    };
+
     for u in &body.users {
         if let Some(enabled) = body.enabled {
             state.provider.set_user_enabled(&u.realm, &u.id, enabled).await?;
         }
-        if let Some(ref team) = body.team {
-            state.provider.set_user_attribute(&u.realm, &u.id, "team", team).await?;
+        if let Some((ref gid, ref name)) = team_assignment {
+            // Remove from any existing team group first
+            let all_groups = state.provider.list_groups(&u.realm).await?;
+            let user_groups = state.provider.get_user_groups(&u.realm, &u.id).await?;
+            for ug in &user_groups {
+                if all_groups.iter().any(|g| g.id == ug.id) && ug.id != *gid {
+                    state.provider.remove_user_from_group(&u.realm, &u.id, &ug.id).await?;
+                }
+            }
+            state.provider.add_user_to_group(&u.realm, &u.id, gid).await?;
+            state.provider.set_user_attribute(&u.realm, &u.id, "team", name).await?;
         }
     }
 
@@ -162,11 +181,11 @@ async fn bulk_edit(
             timestamp: Utc::now(),
             actor: current_user.username.clone(),
             action: "bulk_edit".into(),
-            target_realm: body.users.first().map(|u| u.realm.clone()).unwrap_or_default(),
+            target_realm: realm.to_string(),
             target_user: None,
             detail: format!(
                 "{} users affected — enabled={:?} team={:?}",
-                body.users.len(), body.enabled, body.team
+                body.users.len(), body.enabled, body.team_group_id
             ),
             outcome: AuditOutcome::Success,
         })

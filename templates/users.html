@@ -82,8 +82,11 @@
   <button class="btn btn-success btn-sm" onclick="bulkSetEnabled(true)">Enable</button>
   <button class="btn btn-danger btn-sm" onclick="bulkSetEnabled(false)">Disable</button>
   <div style="display:flex; gap:6px; align-items:center; border-left:1px solid var(--border); padding-left:10px;">
-    <input type="text" id="bulk-team-input" placeholder="Team name…" style="width:150px; padding:5px 10px; font-size:0.82rem;">
-    <button class="btn btn-teal btn-sm" onclick="bulkSetTeam()">Set team</button>
+    <select id="bulk-team-select" style="padding:5px 10px; font-size:0.82rem; width:160px;">
+      <option value="">— set team —</option>
+      {% for g in team_groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
+    </select>
+    <button class="btn btn-teal btn-sm" id="bulk-team-btn">Set team</button>
   </div>
   <button class="btn btn-ghost btn-sm" style="margin-left:auto;" onclick="clearSelection()">Cancel</button>
 </div>
@@ -272,18 +275,18 @@ async function bulkSetEnabled(enabled) {
   else alert('Failed: ' + await res.text());
 }
 
-async function bulkSetTeam() {
+document.getElementById('bulk-team-btn').addEventListener('click', async function() {
   const users = selectedUsers();
-  const team = document.getElementById('bulk-team-input').value.trim();
-  if (!users.length || !team) return;
+  const team_group_id = document.getElementById('bulk-team-select').value;
+  if (!users.length || !team_group_id) return;
   const res = await fetch('/users/bulk-edit', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ csrf_token: CSRF, users, team })
+    body: JSON.stringify({ csrf_token: CSRF, users, team_group_id })
   });
   if (res.ok) location.reload();
   else alert('Failed: ' + await res.text());
-}
+});
 
 // Row click → user detail (ignore clicks on checkboxes)
 document.querySelectorAll('tr[data-row]').forEach(row => {

@@ -327,7 +327,7 @@ impl IdentityProvider for KeycloakProvider {
 
     async fn list_users(&self, realm: &str, query: &ListUsersQuery) -> ProviderResult<Vec<User>> {
         let mut url = format!(
-            "{}/users?first={}&max={}",
+            "{}/users?briefRepresentation=false&first={}&max={}",
             self.admin_url(realm),
             query.offset,
             query.max
