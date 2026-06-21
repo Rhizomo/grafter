@@ -13,7 +13,7 @@ use crate::{
     auth::{csrf_tokens_equal, new_csrf_token},
     error::AppError,
     provider::{CreateUser, Group, ListUsersQuery},
-    routes::{require_admin, require_session, teams::teams_parent_id},
+    routes::{require_admin, require_session},
     session::{Flash, FLASH_KEY},
     storage::{AuditEntry, AuditOutcome, ChangeStatus, FieldChange},
     AppState,
@@ -21,19 +21,10 @@ use crate::{
 
 // ── Team group helpers ────────────────────────────────────────────────────────
 
-fn find_team_subgroups<'a>(groups: &'a [Group], parent_name: &str) -> Vec<&'a Group> {
-    groups.iter()
-        .find(|g| g.name == parent_name)
-        .map(|p| p.subgroups.iter().collect())
-        .unwrap_or_default()
-}
-
 async fn load_team_groups(state: &AppState, realm: &str) -> Result<Vec<Group>, AppError> {
-    let all_groups = state.provider.list_groups(realm).await?;
-    Ok(find_team_subgroups(&all_groups, &state.config.teams_group)
-        .into_iter()
-        .cloned()
-        .collect())
+    let mut groups = state.provider.list_groups(realm).await?;
+    groups.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(groups)
 }
 
 pub fn router() -> Router<AppState> {
@@ -445,10 +436,7 @@ async fn create_user(
     let team_group = match &form.team_group_id {
         Some(gid) if !gid.is_empty() => {
             let groups = state.provider.list_groups(&form.realm).await?;
-            find_team_subgroups(&groups, &state.config.teams_group)
-                .into_iter()
-                .find(|g| g.id == *gid)
-                .map(|g| (g.id.clone(), g.name.clone()))
+            groups.into_iter().find(|g| g.id == *gid).map(|g| (g.id, g.name))
         }
         _ => None,
     };
