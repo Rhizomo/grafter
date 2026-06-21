@@ -166,13 +166,11 @@
     var modal = document.getElementById('create-team-modal');
     document.getElementById('open-team-modal').addEventListener('click', function(e) {
       e.preventDefault();
-      modal.style.display = 'flex';
+      graft.showModal(modal);
       document.getElementById('team_name_input').focus();
     });
-    document.getElementById('close-team-modal').addEventListener('click', function() {
-      modal.style.display = 'none';
-    });
-    modal.addEventListener('click', function(e) { if (e.target === modal) modal.style.display = 'none'; });
+    document.getElementById('close-team-modal').addEventListener('click', function() { graft.hideModal(modal); });
+    modal.addEventListener('click', function(e) { if (e.target === modal) graft.hideModal(modal); });
   })();
 </script>
 {% endif %}

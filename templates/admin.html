@@ -113,7 +113,7 @@
   {% if audit %}
   <div style="display:flex;flex-direction:column;gap:6px;max-height:600px;overflow-y:auto;">
     {% for e in audit %}
-    <div style="padding:10px 12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border);">
+    <div class="audit-entry" style="padding:10px 12px;background:var(--surface2);border-radius:var(--radius);border:1px solid var(--border);">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
         <div style="display:flex;align-items:center;gap:8px;">
           <span style="font-size:0.78rem;font-weight:600;color:var(--text-strong);">{{ e.actor }}</span>
