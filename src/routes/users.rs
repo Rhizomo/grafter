@@ -14,8 +14,8 @@ use crate::{
     error::AppError,
     provider::{CreateUser, Group, ListUsersQuery},
     routes::{require_admin, require_session},
-    session::{Flash, FLASH_KEY},
-    storage::{AuditEntry, AuditOutcome, ChangeStatus, FieldChange},
+    session::{Flash, Role, FLASH_KEY},
+    storage::{AuditEntry, AuditOutcome, ChangeStatus, FieldChange, PendingChange},
     AppState,
 };
 
@@ -442,7 +442,7 @@ async fn create_user(
     session: Session,
     Form(form): Form<NewUserForm>,
 ) -> Result<impl IntoResponse, AppError> {
-    let current_user = require_admin(&session).await?;
+    let current_user = require_session(&session).await?;
 
     let session_csrf: String = session.get("csrf").await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?
@@ -451,8 +451,8 @@ async fn create_user(
         return Err(AppError::CsrfMismatch);
     }
 
-    // Resolve team group name for attribute sync (fast user list display)
-    let team_group = match &form.team_group_id {
+    // Resolve team group (id + name) for both paths
+    let team_group: Option<(String, String)> = match &form.team_group_id {
         Some(gid) if !gid.is_empty() => {
             let groups = state.provider.list_groups(&form.realm).await?;
             groups.into_iter().find(|g| g.id == *gid).map(|g| (g.id, g.name))
@@ -460,45 +460,107 @@ async fn create_user(
         _ => None,
     };
 
-    let mut attrs = std::collections::HashMap::new();
-    if let Some((_, ref name)) = team_group {
-        attrs.insert("team".to_string(), vec![name.clone()]);
+    match current_user.role {
+        // ── Admin: create immediately in KC ──────────────────────────────
+        Role::Admin => {
+            let mut attrs = std::collections::HashMap::new();
+            if let Some((_, ref name)) = team_group {
+                attrs.insert("team".to_string(), vec![name.clone()]);
+            }
+
+            let password = form.password.filter(|p| !p.is_empty());
+            let password_temporary = form.password_temporary.as_deref() == Some("on");
+
+            let new_user = CreateUser {
+                username: form.username.clone(),
+                email: form.email.filter(|e| !e.is_empty()),
+                first_name: form.first_name.filter(|f| !f.is_empty()),
+                last_name: form.last_name.filter(|l| !l.is_empty()),
+                enabled: form.enabled.as_deref() == Some("on"),
+                password,
+                password_temporary,
+                phone_number: form.phone_number.filter(|v| !v.is_empty()),
+                personnel_code: form.personnel_code.filter(|v| !v.is_empty()),
+                attributes: attrs,
+            };
+
+            let created = state.provider.create_user(&form.realm, new_user).await?;
+
+            if let Some((ref gid, _)) = team_group {
+                state.provider.add_user_to_group(&form.realm, &created.id, gid).await?;
+            }
+
+            state.storage.append_audit(&AuditEntry {
+                id: Uuid::new_v4().to_string(), timestamp: Utc::now(),
+                actor: current_user.username.clone(), action: "create_user".into(),
+                target_realm: form.realm.clone(), target_user: Some(form.username.clone()),
+                detail: "user created directly".into(), outcome: AuditOutcome::Success,
+            }).await.map_err(AppError::Internal)?;
+
+            session.insert(FLASH_KEY, Flash::success(format!("User {} created.", form.username))).await
+                .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?;
+
+            Ok(Redirect::to(&format!("/users/{}/{}", form.realm, created.id)))
+        }
+
+        // ── Operator: queue as pending proposal ───────────────────────────
+        Role::Operator => {
+            let mut diff = vec![
+                FieldChange { field: "username".into(),   before: None, after: form.username.clone() },
+            ];
+            if let Some(v) = form.first_name.filter(|s| !s.is_empty()) {
+                diff.push(FieldChange { field: "first_name".into(), before: None, after: v });
+            }
+            if let Some(v) = form.last_name.filter(|s| !s.is_empty()) {
+                diff.push(FieldChange { field: "last_name".into(), before: None, after: v });
+            }
+            if let Some(v) = form.email.filter(|s| !s.is_empty()) {
+                diff.push(FieldChange { field: "email".into(), before: None, after: v });
+            }
+            if let Some((ref gid, ref gname)) = team_group {
+                diff.push(FieldChange { field: "team_group_id".into(), before: None, after: gid.clone() });
+                diff.push(FieldChange { field: "team".into(),          before: None, after: gname.clone() });
+            }
+            if let Some(v) = form.phone_number.filter(|s| !s.is_empty()) {
+                diff.push(FieldChange { field: "phone_number".into(), before: None, after: v });
+            }
+            if let Some(v) = form.personnel_code.filter(|s| !s.is_empty()) {
+                diff.push(FieldChange { field: "personnel_code".into(), before: None, after: v });
+            }
+            diff.push(FieldChange {
+                field: "enabled".into(), before: None,
+                after: if form.enabled.as_deref() == Some("on") { "true" } else { "false" }.into(),
+            });
+
+            let change = PendingChange {
+                id: Uuid::new_v4().to_string(),
+                realm: form.realm.clone(),
+                user_id: String::new(),
+                username: form.username.clone(),
+                proposed_by: current_user.username.clone(),
+                proposed_at: chrono::Utc::now(),
+                status: crate::storage::ChangeStatus::Pending,
+                resolved_by: None, resolved_at: None, reject_reason: None,
+                diff,
+                action: "create_user".into(),
+            };
+
+            state.storage.save_change(&change).await.map_err(AppError::Internal)?;
+            state.storage.append_audit(&AuditEntry {
+                id: Uuid::new_v4().to_string(), timestamp: Utc::now(),
+                actor: current_user.username.clone(), action: "propose_create_user".into(),
+                target_realm: form.realm.clone(), target_user: Some(form.username.clone()),
+                detail: format!("user creation for {} queued for approval", form.username),
+                outcome: AuditOutcome::Success,
+            }).await.map_err(AppError::Internal)?;
+
+            session.insert(FLASH_KEY, Flash::warning(
+                format!("User creation for {} submitted for admin approval.", form.username)
+            )).await.map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?;
+
+            Ok(Redirect::to("/changes"))
+        }
     }
-
-    let password = form.password.filter(|p| !p.is_empty());
-    let password_temporary = form.password_temporary.as_deref() == Some("on");
-
-    let new_user = CreateUser {
-        username: form.username.clone(),
-        email: form.email.filter(|e| !e.is_empty()),
-        first_name: form.first_name.filter(|f| !f.is_empty()),
-        last_name: form.last_name.filter(|l| !l.is_empty()),
-        enabled: form.enabled.as_deref() == Some("on"),
-        password,
-        password_temporary,
-        phone_number: form.phone_number.filter(|v| !v.is_empty()),
-        personnel_code: form.personnel_code.filter(|v| !v.is_empty()),
-        attributes: attrs,
-    };
-
-    let created = state.provider.create_user(&form.realm, new_user).await?;
-
-    // Add to KC team group
-    if let Some((ref gid, _)) = team_group {
-        state.provider.add_user_to_group(&form.realm, &created.id, gid).await?;
-    }
-
-    state.storage.append_audit(&AuditEntry {
-        id: Uuid::new_v4().to_string(), timestamp: Utc::now(),
-        actor: current_user.username.clone(), action: "create_user".into(),
-        target_realm: form.realm.clone(), target_user: Some(form.username.clone()),
-        detail: "user created".into(), outcome: AuditOutcome::Success,
-    }).await.map_err(AppError::Internal)?;
-
-    session.insert(FLASH_KEY, Flash::success(format!("User {} created.", form.username))).await
-        .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?;
-
-    Ok(Redirect::to(&format!("/users/{}/{}", form.realm, created.id)))
 }
 
 // ── Role assign / remove ──────────────────────────────────────────────────────

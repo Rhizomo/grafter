@@ -55,6 +55,7 @@ pub async fn propose_or_apply(
                 resolved_at: None,
                 reject_reason: None,
                 diff: req.diff,
+                action: "edit_user".into(),
             };
             storage.save_change(&change).await.map_err(AppError::Internal)?;
             storage

@@ -15,11 +15,13 @@ pub enum ChangeStatus {
     Rejected,
 }
 
+fn default_action() -> String { "edit_user".into() }
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PendingChange {
     pub id: String,
     pub realm: String,
-    pub user_id: String,
+    pub user_id: String,   // empty string for create_user proposals
     pub username: String,
     pub proposed_by: String,
     pub proposed_at: DateTime<Utc>,
@@ -28,6 +30,8 @@ pub struct PendingChange {
     pub resolved_at: Option<DateTime<Utc>>,
     pub reject_reason: Option<String>,
     pub diff: Vec<FieldChange>,
+    #[serde(default = "default_action")]
+    pub action: String,    // "edit_user" | "create_user"
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

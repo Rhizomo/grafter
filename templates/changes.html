@@ -49,17 +49,28 @@
         </td>
         {% endif %}
         <td>
-          <a href="/users/{{ c.realm }}/{{ c.user_id }}" class="link-primary">{{ c.username }}</a>
+          {% if c.action == "create_user" %}
+            <span class="pill pill-blue" style="margin-bottom:4px;display:inline-block;">New user</span><br>
+          {% endif %}
+          {% if c.user_id and c.action != "create_user" or c.status == "approved" and c.user_id %}
+            <a href="/users/{{ c.realm }}/{{ c.user_id }}" class="link-primary">{{ c.username }}</a>
+          {% else %}
+            <span style="color:var(--text-strong);font-weight:600;">{{ c.username }}</span>
+          {% endif %}
         </td>
         <td style="color:var(--muted); font-size:0.82rem;">{{ c.realm }}</td>
         <td>
           {% for f in c.diff %}
-            <div style="font-size:0.8rem; margin-bottom:3px; display:flex; align-items:center; gap:5px;">
+            {% if f.field != "team_group_id" %}
+            <div style="font-size:0.8rem; margin-bottom:3px; display:flex; align-items:center; gap:5px; flex-wrap:wrap;">
               <code>{{ f.field }}</code>
-              <span style="color:var(--muted2);">{{ f.before | default(value='—') }}</span>
-              <span style="color:var(--muted);">→</span>
+              {% if f.before %}
+                <span style="color:var(--muted2);">{{ f.before }}</span>
+                <span style="color:var(--muted);">→</span>
+              {% endif %}
               <span style="color:var(--text-strong); font-weight:500;">{{ f.after }}</span>
             </div>
+            {% endif %}
           {% endfor %}
         </td>
         <td style="color:var(--text); font-weight:500;">{{ c.proposed_by }}</td>

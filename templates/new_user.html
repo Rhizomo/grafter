@@ -71,16 +71,24 @@
         </div>
       </div>
 
+      {% if is_admin %}
       <div class="field">
-        <label for="new_password">Password
-          <span style="color:var(--muted); font-weight:400;">(optional)</span>
-        </label>
-        <input type="password" id="new_password" name="password" autocomplete="new-password" style="width:100%;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
+          <label for="new_password" style="margin:0;">Password
+            <span style="color:var(--muted); font-weight:400;">(optional)</span>
+          </label>
+        </div>
+        <div style="position:relative;">
+          <input type="password" id="new_password" name="password" autocomplete="new-password" style="width:100%;padding-right:40px;">
+          <button type="button" id="toggle-pw" tabindex="-1"
+                  style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:0;line-height:1;">👁</button>
+        </div>
       </div>
       <div class="field" style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
         <input type="checkbox" name="password_temporary" id="password_temporary" checked>
         <label for="password_temporary" style="margin:0; color:var(--text);">Temporary — user must change on next login</label>
       </div>
+      {% endif %}
 
       <div class="field" style="display:flex; align-items:center; gap:10px; margin-bottom:24px;">
         <input type="checkbox" name="enabled" id="enabled" checked>
@@ -88,7 +96,11 @@
       </div>
 
       <div style="display:flex; gap:10px; align-items:center;">
-        <button type="submit" class="btn btn-primary">Create user</button>
+        {% if is_admin %}
+          <button type="submit" class="btn btn-primary">Create user</button>
+        {% else %}
+          <button type="submit" class="btn btn-primary">Propose user creation</button>
+        {% endif %}
         <a href="/users?realm={{ current_realm }}" class="btn btn-ghost">Cancel</a>
       </div>
     </form>
@@ -114,6 +126,16 @@
 </div>
 
 {% if is_admin %}
+<script>
+  (function() {
+    var btn = document.getElementById('toggle-pw');
+    var inp = document.getElementById('new_password');
+    if (btn && inp) btn.addEventListener('click', function() {
+      inp.type = inp.type === 'password' ? 'text' : 'password';
+      btn.textContent = inp.type === 'password' ? '👁' : '🙈';
+    });
+  })();
+</script>
 <div id="create-team-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;align-items:center;justify-content:center;">
   <div class="card" style="width:360px;margin:0;">
     <h2>New team</h2>

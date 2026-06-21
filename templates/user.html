@@ -166,7 +166,11 @@
     <input type="hidden" name="csrf_token" value="{{ csrf }}">
     <div class="field">
       <label>New password</label>
-      <input type="password" name="password" autocomplete="new-password" required style="width:100%;">
+      <div style="position:relative;">
+        <input type="password" id="set-pw-input" name="password" autocomplete="new-password" required style="width:100%;padding-right:40px;">
+        <button type="button" id="toggle-set-pw" tabindex="-1"
+                style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:0;line-height:1;">👁</button>
+      </div>
     </div>
     <div class="field" style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
       <input type="checkbox" name="temporary" id="pw-temporary" checked>
@@ -209,6 +213,14 @@
       modal.style.display = 'none';
     });
     modal.addEventListener('click', function(e) { if (e.target === modal) modal.style.display = 'none'; });
+  })();
+  (function() {
+    var btn = document.getElementById('toggle-set-pw');
+    var inp = document.getElementById('set-pw-input');
+    if (btn && inp) btn.addEventListener('click', function() {
+      inp.type = inp.type === 'password' ? 'text' : 'password';
+      btn.textContent = inp.type === 'password' ? '👁' : '🙈';
+    });
   })();
 </script>
 {% endif %}
