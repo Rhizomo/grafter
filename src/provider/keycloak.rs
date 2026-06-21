@@ -390,12 +390,16 @@ impl IdentityProvider for KeycloakProvider {
     async fn update_user(&self, realm: &str, id: &str, update: UpdateUser) -> ProviderResult<()> {
         let url = format!("{}/users/{}", self.admin_url(realm), id);
 
+        // Keycloak's declarative user profile validates ALL required fields on
+        // every PUT, even for partial updates. Fetch current and merge so we
+        // always send a complete representation.
+        let cur = self.get_user(realm, id).await?;
         let mut body = serde_json::Map::new();
-        if let Some(v) = update.email      { body.insert("email".into(), json!(v)); }
-        if let Some(v) = update.first_name { body.insert("firstName".into(), json!(v)); }
-        if let Some(v) = update.last_name  { body.insert("lastName".into(), json!(v)); }
-        if let Some(v) = update.enabled    { body.insert("enabled".into(), json!(v)); }
-        if let Some(v) = update.attributes { body.insert("attributes".into(), json!(v)); }
+        body.insert("firstName".into(), json!(update.first_name.or(cur.first_name).unwrap_or_default()));
+        body.insert("lastName".into(),  json!(update.last_name.or(cur.last_name).unwrap_or_default()));
+        body.insert("email".into(),     json!(update.email.or(cur.email).unwrap_or_default()));
+        body.insert("enabled".into(),   json!(update.enabled.unwrap_or(cur.enabled)));
+        body.insert("attributes".into(), json!(update.attributes.unwrap_or(cur.attributes)));
 
         self.put(&url, &serde_json::Value::Object(body)).await
     }
