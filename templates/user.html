@@ -60,12 +60,13 @@
       </div>
       <div class="field">
         <label for="edit_team">Team</label>
-        <input type="text" id="edit_team" name="team" list="team-list"
-               value="{{ subject.attributes.team | default(value=[]) | first | default(value='') }}"
-               placeholder="e.g. DevOps" autocomplete="organization" style="width:100%;">
-        <datalist id="team-list">
-          {% for t in teams %}<option value="{{ t }}">{% endfor %}
-        </datalist>
+        {% set current_team = subject.attributes.team | default(value=[]) | first | default(value='') %}
+        <select id="edit_team" name="team" autocomplete="organization" style="width:100%;">
+          <option value="">— none —</option>
+          {% for t in teams %}
+            <option value="{{ t }}" {% if t == current_team %}selected{% endif %}>{{ t }}</option>
+          {% endfor %}
+        </select>
       </div>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 14px;">
         <div class="field">
