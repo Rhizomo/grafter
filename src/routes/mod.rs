@@ -1,6 +1,7 @@
 pub mod auth;
 pub mod changes;
 pub mod clients;
+pub mod teams;
 pub mod users;
 
 use axum::{routing::get, Router};
@@ -18,6 +19,7 @@ pub fn router(state: AppState) -> Router {
         .merge(auth::router())
         .merge(users::router())
         .merge(changes::router())
+        .merge(teams::router())
         .merge(clients::router())
         .with_state(state)
 }

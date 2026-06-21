@@ -12,12 +12,29 @@ use uuid::Uuid;
 use crate::{
     auth::{csrf_tokens_equal, new_csrf_token},
     error::AppError,
-    provider::{CreateUser, ListUsersQuery},
-    routes::{require_admin, require_session},
+    provider::{CreateUser, Group, ListUsersQuery},
+    routes::{require_admin, require_session, teams::teams_parent_id},
     session::{Flash, FLASH_KEY},
     storage::{AuditEntry, AuditOutcome, ChangeStatus, FieldChange},
     AppState,
 };
+
+// ── Team group helpers ────────────────────────────────────────────────────────
+
+fn find_team_subgroups<'a>(groups: &'a [Group], parent_name: &str) -> Vec<&'a Group> {
+    groups.iter()
+        .find(|g| g.name == parent_name)
+        .map(|p| p.subgroups.iter().collect())
+        .unwrap_or_default()
+}
+
+async fn load_team_groups(state: &AppState, realm: &str) -> Result<Vec<Group>, AppError> {
+    let all_groups = state.provider.list_groups(realm).await?;
+    Ok(find_team_subgroups(&all_groups, &state.config.teams_group)
+        .into_iter()
+        .cloned()
+        .collect())
+}
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -68,15 +85,7 @@ async fn list_users(
     }
 
     let users = state.provider.list_users(&realm, &lq).await?;
-
-    // Collect unique teams for the filter dropdown
-    let mut teams: Vec<String> = users
-        .iter()
-        .filter_map(|u| u.team().map(|t| t.to_string()))
-        .collect::<std::collections::HashSet<_>>()
-        .into_iter()
-        .collect();
-    teams.sort();
+    let team_groups = load_team_groups(&state, &realm).await?;
 
     let csrf = new_csrf_token();
     session
@@ -101,7 +110,7 @@ async fn list_users(
     ctx.insert("realms", &realms);
     ctx.insert("current_realm", &realm);
     ctx.insert("users", &users_with_realm);
-    ctx.insert("teams", &teams);
+    ctx.insert("team_groups", &team_groups);
     ctx.insert("search", &q.search);
     ctx.insert("csrf", &csrf);
 
@@ -191,14 +200,11 @@ async fn user_detail(
     let all_groups = state.provider.list_groups(&realm).await?;
     let all_roles = state.provider.list_realm_roles(&realm).await?;
 
-    let realm_users = state.provider.list_users(&realm, &ListUsersQuery::new().page(0, 500)).await?;
-    let mut teams: Vec<String> = realm_users
-        .iter()
-        .filter_map(|u| u.team().map(|t| t.to_string()))
-        .collect::<std::collections::HashSet<_>>()
-        .into_iter()
-        .collect();
-    teams.sort();
+    let team_groups = load_team_groups(&state, &realm).await?;
+    // Find which team group this user currently belongs to
+    let current_team_group_id: Option<String> = groups.iter()
+        .find(|g| team_groups.iter().any(|tg| tg.id == g.id))
+        .map(|g| g.id.clone());
 
     let pending = state
         .storage
@@ -235,7 +241,8 @@ async fn user_detail(
     ctx.insert("all_groups", &all_groups);
     ctx.insert("available_roles", &available_roles);
     ctx.insert("pending", &pending);
-    ctx.insert("teams", &teams);
+    ctx.insert("team_groups", &team_groups);
+    ctx.insert("current_team_group_id", &current_team_group_id);
     ctx.insert("csrf", &csrf);
     ctx.insert("flash", &flash);
 
@@ -256,7 +263,7 @@ struct EditForm {
     last_name: Option<String>,
     email: Option<String>,
     enabled: Option<String>,
-    team: Option<String>,
+    team_group_id: Option<String>,
     phone_number: Option<String>,
     personnel_code: Option<String>,
 }
@@ -303,12 +310,9 @@ async fn edit_user(
         diff.push(FieldChange { field: "enabled".into(), before: Some(existing.enabled.to_string()), after: enabled_val.to_string() });
     }
 
-    let current_team = existing.team().map(|s| s.to_string());
-    if form.team.as_deref() != current_team.as_deref() {
-        if let Some(v) = &form.team {
-            diff.push(FieldChange { field: "team".into(), before: current_team, after: v.clone() });
-        }
-    }
+    // Team group assignment is admin-only and applied immediately (outside the diff/proposal flow).
+    // We resolve it here and apply after the other fields.
+    let new_team_group_id = form.team_group_id.as_deref().filter(|s| !s.is_empty());
 
     let current_phone = existing.attributes.get("phone_number").and_then(|v| v.first()).cloned();
     let new_phone = form.phone_number.as_ref().filter(|s| !s.is_empty());
@@ -344,6 +348,29 @@ async fn edit_user(
     )
     .await?;
 
+    // Apply team group change (admin-only, immediate)
+    if current_user.role.is_admin() {
+        let user_groups = state.provider.get_user_groups(&realm, &id).await?;
+        let team_groups = load_team_groups(&state, &realm).await?;
+        let old_team_group = user_groups.iter().find(|g| team_groups.iter().any(|tg| tg.id == g.id));
+        let old_id = old_team_group.map(|g| g.id.as_str());
+
+        if new_team_group_id != old_id {
+            if let Some(old) = old_id {
+                state.provider.remove_user_from_group(&realm, &id, old).await?;
+            }
+            if let Some(new_gid) = new_team_group_id {
+                state.provider.add_user_to_group(&realm, &id, new_gid).await?;
+                // Sync team attribute for fast list display
+                let team_name = team_groups.iter().find(|g| g.id == new_gid).map(|g| g.name.as_str()).unwrap_or("");
+                state.provider.set_user_attribute(&realm, &id, "team", team_name).await?;
+            } else {
+                // Cleared — remove attribute
+                state.provider.set_user_attribute(&realm, &id, "team", "").await?;
+            }
+        }
+    }
+
     session.insert(FLASH_KEY, flash).await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?;
 
@@ -363,14 +390,7 @@ async fn new_user_form(
     let realm = q.realm.clone()
         .unwrap_or_else(|| realms.first().map(|r| r.name.clone()).unwrap_or_default());
 
-    let users = state.provider.list_users(&realm, &ListUsersQuery::new().page(0, 500)).await?;
-    let mut teams: Vec<String> = users
-        .iter()
-        .filter_map(|u| u.team().map(|t| t.to_string()))
-        .collect::<std::collections::HashSet<_>>()
-        .into_iter()
-        .collect();
-    teams.sort();
+    let team_groups = load_team_groups(&state, &realm).await?;
 
     let csrf = new_csrf_token();
     session.insert("csrf", &csrf).await
@@ -382,7 +402,7 @@ async fn new_user_form(
     ctx.insert("active_tab", "users");
     ctx.insert("realms", &realms);
     ctx.insert("current_realm", &realm);
-    ctx.insert("teams", &teams);
+    ctx.insert("team_groups", &team_groups);
     ctx.insert("csrf", &csrf);
 
     let html = state.tera.render("new_user.html", &ctx)
@@ -399,7 +419,7 @@ struct NewUserForm {
     first_name: Option<String>,
     last_name: Option<String>,
     email: Option<String>,
-    team: Option<String>,
+    team_group_id: Option<String>,
     phone_number: Option<String>,
     personnel_code: Option<String>,
     password: Option<String>,
@@ -421,11 +441,21 @@ async fn create_user(
         return Err(AppError::CsrfMismatch);
     }
 
-    let mut attrs = std::collections::HashMap::new();
-    if let Some(ref team) = form.team {
-        if !team.is_empty() {
-            attrs.insert("team".to_string(), vec![team.clone()]);
+    // Resolve team group name for attribute sync (fast user list display)
+    let team_group = match &form.team_group_id {
+        Some(gid) if !gid.is_empty() => {
+            let groups = state.provider.list_groups(&form.realm).await?;
+            find_team_subgroups(&groups, &state.config.teams_group)
+                .into_iter()
+                .find(|g| g.id == *gid)
+                .map(|g| (g.id.clone(), g.name.clone()))
         }
+        _ => None,
+    };
+
+    let mut attrs = std::collections::HashMap::new();
+    if let Some((_, ref name)) = team_group {
+        attrs.insert("team".to_string(), vec![name.clone()]);
     }
 
     let password = form.password.filter(|p| !p.is_empty());
@@ -445,6 +475,11 @@ async fn create_user(
     };
 
     let created = state.provider.create_user(&form.realm, new_user).await?;
+
+    // Add to KC team group
+    if let Some((ref gid, _)) = team_group {
+        state.provider.add_user_to_group(&form.realm, &created.id, gid).await?;
+    }
 
     state.storage.append_audit(&AuditEntry {
         id: Uuid::new_v4().to_string(), timestamp: Utc::now(),

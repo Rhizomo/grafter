@@ -21,6 +21,9 @@ pub struct Config {
     pub role_admin: String,
     pub role_operator: String,
 
+    // Teams
+    pub teams_group: String,
+
     // Storage (MinIO / S3)
     pub s3_endpoint: String,
     pub s3_bucket: String,
@@ -50,6 +53,8 @@ impl Config {
 
             role_admin: env_or("IAM_ROLE_ADMIN", "iam-admin"),
             role_operator: env_or("IAM_ROLE_OPERATOR", "iam-operator"),
+
+            teams_group: env_or("TEAMS_GROUP", "teams"),
 
             s3_endpoint: env_require("S3_ENDPOINT"),
             s3_bucket: env_or("S3_BUCKET", "grafter"),

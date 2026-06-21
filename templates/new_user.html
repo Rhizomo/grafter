@@ -48,12 +48,16 @@
       </div>
 
       <div class="field">
-        <label for="new_team">Team</label>
-        <input type="text" id="new_team" name="team" list="team-list"
-               autocomplete="organization" placeholder="e.g. DevOps" style="width:100%;">
-        <datalist id="team-list">
-          {% for t in teams %}<option value="{{ t }}">{% endfor %}
-        </datalist>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
+          <label for="new_team" style="margin:0;">Team</label>
+          {% if is_admin %}
+          <a href="#create-team-modal" id="open-team-modal" style="font-size:0.72rem;color:var(--teal);">+ New team</a>
+          {% endif %}
+        </div>
+        <select id="new_team" name="team_group_id" style="width:100%;">
+          <option value="">— none —</option>
+          {% for g in team_groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
+        </select>
       </div>
 
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 14px;">
@@ -108,4 +112,38 @@
     <p>Determines which services this account can access. Most users belong to <code style="font-family:monospace;font-size:0.77rem;color:var(--text);background:var(--surface2);padding:1px 5px;border-radius:3px;border:1px solid var(--border);">smartech</code>.</p>
   </div>
 </div>
+
+{% if is_admin %}
+<div id="create-team-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;align-items:center;justify-content:center;">
+  <div class="card" style="width:360px;margin:0;">
+    <h2>New team</h2>
+    <form method="post" action="/teams">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}">
+      <input type="hidden" name="realm" value="{{ current_realm }}">
+      <div class="field">
+        <label for="team_name_input">Team name</label>
+        <input type="text" id="team_name_input" name="name" required autocomplete="off" placeholder="e.g. DevOps" style="width:100%;">
+      </div>
+      <div style="display:flex;gap:10px;margin-top:4px;">
+        <button type="submit" class="btn btn-primary">Create</button>
+        <button type="button" id="close-team-modal" class="btn btn-ghost">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+  (function() {
+    var modal = document.getElementById('create-team-modal');
+    document.getElementById('open-team-modal').addEventListener('click', function(e) {
+      e.preventDefault();
+      modal.style.display = 'flex';
+      document.getElementById('team_name_input').focus();
+    });
+    document.getElementById('close-team-modal').addEventListener('click', function() {
+      modal.style.display = 'none';
+    });
+    modal.addEventListener('click', function(e) { if (e.target === modal) modal.style.display = 'none'; });
+  })();
+</script>
+{% endif %}
 {% endblock %}

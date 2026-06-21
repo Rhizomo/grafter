@@ -16,6 +16,11 @@
   .table-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
   .table-meta-count { font-size: 0.75rem; color: var(--muted2); }
 
+  /* Row nav arrow */
+  .row-nav { color: var(--muted2); font-size: 0.88rem; padding: 12px 14px 12px 2px; width: 24px; text-align: right; transition: color 0.12s; white-space: nowrap; }
+  tbody tr:hover .row-nav { color: var(--teal); }
+  tbody tr[data-row] { cursor: pointer; }
+
   /* Bulk bar */
   @keyframes bulk-in { from { transform: translateY(-8px); } to { transform: translateY(0); } }
   @media (prefers-reduced-motion: no-preference) { #bulk-bar { animation: bulk-in 0.32s cubic-bezier(0.16,1,0.3,1); } }
@@ -99,6 +104,7 @@
         <th class="col-realm">Realm</th>
         <th class="sortable" data-col="5">Status<span class="sort-ind">▲</span></th>
         <th class="sortable" data-col="6">Team<span class="sort-ind">▲</span></th>
+        <th style="width:24px;"></th>
       </tr>
     </thead>
     <tbody>
@@ -131,6 +137,7 @@
         <td style="color:var(--teal); font-size:0.84rem;">
           {% if team %}{{ team }}{% else %}<span style="color:var(--muted2);">—</span>{% endif %}
         </td>
+        <td class="row-nav">›</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -277,6 +284,16 @@ async function bulkSetTeam() {
   if (res.ok) location.reload();
   else alert('Failed: ' + await res.text());
 }
+
+// Row click → user detail (ignore clicks on checkboxes)
+document.querySelectorAll('tr[data-row]').forEach(row => {
+  row.addEventListener('click', e => {
+    if (e.target.closest('input')) return;
+    const realm = row.dataset.realm;
+    const id    = row.dataset.id;
+    if (realm && id) window.location.href = `/users/${realm}/${id}`;
+  });
+});
 
 // Init
 filterTable();

@@ -171,6 +171,7 @@ pub trait IdentityProvider: Send + Sync + 'static {
     // Groups
     async fn list_groups(&self, realm: &str) -> ProviderResult<Vec<Group>>;
     async fn get_user_groups(&self, realm: &str, user_id: &str) -> ProviderResult<Vec<Group>>;
+    async fn create_group(&self, realm: &str, name: &str, parent_id: Option<&str>) -> ProviderResult<Group>;
     async fn add_user_to_group(
         &self,
         realm: &str,

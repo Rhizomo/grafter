@@ -475,7 +475,7 @@ impl IdentityProvider for KeycloakProvider {
     }
 
     async fn list_groups(&self, realm: &str) -> ProviderResult<Vec<Group>> {
-        let url = format!("{}/groups", self.admin_url(realm));
+        let url = format!("{}/groups?briefRepresentation=false", self.admin_url(realm));
         let groups: Vec<KcGroup> = self.get(&url).await?;
         Ok(groups.into_iter().map(kc_group_to_group).collect())
     }
@@ -484,6 +484,27 @@ impl IdentityProvider for KeycloakProvider {
         let url = format!("{}/users/{}/groups", self.admin_url(realm), user_id);
         let groups: Vec<KcGroup> = self.get(&url).await?;
         Ok(groups.into_iter().map(kc_group_to_group).collect())
+    }
+
+    async fn create_group(&self, realm: &str, name: &str, parent_id: Option<&str>) -> ProviderResult<Group> {
+        let url = match parent_id {
+            Some(pid) => format!("{}/groups/{}/children", self.admin_url(realm), pid),
+            None      => format!("{}/groups", self.admin_url(realm)),
+        };
+        let resp = self.post(&url, &json!({"name": name})).await?;
+        let location = resp
+            .headers()
+            .get("location")
+            .and_then(|v| v.to_str().ok())
+            .ok_or_else(|| ProviderError::UnexpectedResponse { status: 201, body: "no Location header".into() })?;
+        let id = location.rsplit('/').next().filter(|s| !s.is_empty())
+            .ok_or_else(|| ProviderError::UnexpectedResponse { status: 201, body: format!("bad Location: {location}") })?
+            .to_string();
+        let path = match parent_id {
+            Some(_) => format!("/teams/{name}"),
+            None    => format!("/{name}"),
+        };
+        Ok(Group { id, name: name.to_string(), path, subgroups: vec![] })
     }
 
     async fn add_user_to_group(
