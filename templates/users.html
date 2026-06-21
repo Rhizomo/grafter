@@ -65,8 +65,8 @@
     <label>Team</label>
     <select id="f-team" onchange="filterTable()">
       <option value="">All teams</option>
-      {% for t in teams %}
-        <option value="{{ t }}">{{ t }}</option>
+      {% for g in team_groups %}
+        <option value="{{ g.name }}">{{ g.name }}</option>
       {% endfor %}
     </select>
   </div>
