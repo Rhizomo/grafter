@@ -427,6 +427,15 @@ impl IdentityProvider for KeycloakProvider {
         .await
     }
 
+    async fn set_user_password(&self, realm: &str, id: &str, password: &str, temporary: bool) -> ProviderResult<()> {
+        let url = format!("{}/users/{}/reset-password", self.admin_url(realm), id);
+        self.put(&url, &json!({
+            "type": "password",
+            "value": password,
+            "temporary": temporary
+        })).await
+    }
+
     async fn delete_user(&self, realm: &str, id: &str) -> ProviderResult<()> {
         let url = format!("{}/users/{}", self.admin_url(realm), id);
         self.delete(&url).await

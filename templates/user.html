@@ -2,7 +2,11 @@
 {% block title %}{{ subject.username }} — Grafter{% endblock %}
 
 {% block content %}
-<a href="/users?realm={{ realm }}" style="font-size:0.82rem; color:var(--muted);">← Users</a>
+<nav style="display:flex;align-items:center;gap:6px;margin-bottom:16px;font-size:0.78rem;" aria-label="breadcrumb">
+  <a href="/users?realm={{ realm }}" style="color:var(--teal);">Users</a>
+  <span style="color:var(--muted2);">/</span>
+  <span style="color:var(--muted);">{{ subject.username }}</span>
+</nav>
 <div class="page-header">
   <div>
     <h1 style="margin:8px 0 4px;">{{ subject.username }}</h1>
@@ -53,7 +57,10 @@
       </div>
       <div class="field">
         <label>Team</label>
-        <input type="text" name="team" value="{{ subject.attributes.team | default(value=[]) | first | default(value='') }}" placeholder="e.g. DevOps" style="width:100%;">
+        <input type="text" name="team" list="team-list" value="{{ subject.attributes.team | default(value=[]) | first | default(value='') }}" placeholder="e.g. DevOps" autocomplete="off" style="width:100%;">
+        <datalist id="team-list">
+          {% for t in teams %}<option value="{{ t }}">{% endfor %}
+        </datalist>
       </div>
       <div class="field" style="display:flex; align-items:center; gap:10px;">
         <input type="checkbox" name="enabled" id="enabled" {% if subject.enabled %}checked{% endif %}>
@@ -126,6 +133,25 @@
     </div>
   </div>
 </div>
+
+{% if is_admin %}
+<!-- Password -->
+<div class="card" style="margin-top:0;max-width:420px;">
+  <h2>Set password</h2>
+  <form method="post" action="/users/{{ realm }}/{{ subject.id }}/set-password">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <div class="field">
+      <label>New password</label>
+      <input type="password" name="password" autocomplete="new-password" required style="width:100%;">
+    </div>
+    <div class="field" style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+      <input type="checkbox" name="temporary" id="pw-temporary" checked>
+      <label for="pw-temporary" style="margin:0;color:var(--text);">Temporary — user must change on next login</label>
+    </div>
+    <button type="submit" class="btn btn-ghost">Set password</button>
+  </form>
+</div>
+{% endif %}
 
 <!-- Pending changes -->
 {% if pending %}

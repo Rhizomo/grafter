@@ -29,6 +29,7 @@ pub fn router() -> Router<AppState> {
         .route("/users/:realm/:id/edit", post(edit_user))
         .route("/users/:realm/:id/roles/assign", post(assign_role))
         .route("/users/:realm/:id/roles/remove", post(remove_role))
+        .route("/users/:realm/:id/set-password", post(set_user_password))
 }
 
 async fn index(session: Session) -> Result<impl IntoResponse, AppError> {
@@ -190,6 +191,15 @@ async fn user_detail(
     let all_groups = state.provider.list_groups(&realm).await?;
     let all_roles = state.provider.list_realm_roles(&realm).await?;
 
+    let realm_users = state.provider.list_users(&realm, &ListUsersQuery::new().page(0, 500)).await?;
+    let mut teams: Vec<String> = realm_users
+        .iter()
+        .filter_map(|u| u.team().map(|t| t.to_string()))
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
+    teams.sort();
+
     let pending = state
         .storage
         .list_changes()
@@ -225,6 +235,7 @@ async fn user_detail(
     ctx.insert("all_groups", &all_groups);
     ctx.insert("available_roles", &available_roles);
     ctx.insert("pending", &pending);
+    ctx.insert("teams", &teams);
     ctx.insert("csrf", &csrf);
     ctx.insert("flash", &flash);
 
@@ -334,6 +345,15 @@ async fn new_user_form(
     let realm = q.realm.clone()
         .unwrap_or_else(|| realms.first().map(|r| r.name.clone()).unwrap_or_default());
 
+    let users = state.provider.list_users(&realm, &ListUsersQuery::new().page(0, 500)).await?;
+    let mut teams: Vec<String> = users
+        .iter()
+        .filter_map(|u| u.team().map(|t| t.to_string()))
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
+    teams.sort();
+
     let csrf = new_csrf_token();
     session.insert("csrf", &csrf).await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?;
@@ -344,6 +364,7 @@ async fn new_user_form(
     ctx.insert("active_tab", "users");
     ctx.insert("realms", &realms);
     ctx.insert("current_realm", &realm);
+    ctx.insert("teams", &teams);
     ctx.insert("csrf", &csrf);
 
     let html = state.tera.render("new_user.html", &ctx)
@@ -498,4 +519,50 @@ async fn remove_role(
         .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?;
 
     Ok(Redirect::to(&format!("/users/{realm}/{user_id}")))
+}
+
+// ── Set password ──────────────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct SetPasswordForm {
+    csrf_token: String,
+    password: String,
+    temporary: Option<String>,
+}
+
+async fn set_user_password(
+    State(state): State<AppState>,
+    session: Session,
+    Path((realm, id)): Path<(String, String)>,
+    Form(form): Form<SetPasswordForm>,
+) -> Result<impl IntoResponse, AppError> {
+    let current_user = require_admin(&session).await?;
+
+    let session_csrf: String = session.get("csrf").await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?
+        .ok_or(AppError::CsrfMismatch)?;
+    if !csrf_tokens_equal(&form.csrf_token, &session_csrf) {
+        return Err(AppError::CsrfMismatch);
+    }
+
+    if form.password.is_empty() {
+        return Err(AppError::Internal(anyhow::anyhow!("password cannot be empty")));
+    }
+
+    let temporary = form.temporary.as_deref() == Some("on");
+    state.provider.set_user_password(&realm, &id, &form.password, temporary).await?;
+
+    let user = state.provider.get_user(&realm, &id).await?;
+    let label = if temporary { "temporary password" } else { "password" };
+    state.storage.append_audit(&AuditEntry {
+        id: Uuid::new_v4().to_string(), timestamp: Utc::now(),
+        actor: current_user.username.clone(), action: "set_password".into(),
+        target_realm: realm.clone(), target_user: Some(user.username.clone()),
+        detail: format!("{label} set"), outcome: AuditOutcome::Success,
+    }).await.map_err(AppError::Internal)?;
+
+    session.insert(FLASH_KEY, Flash::success(format!("Password updated for {}.", user.username))).await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?;
+
+    Ok(Redirect::to(&format!("/users/{realm}/{id}")))
 }

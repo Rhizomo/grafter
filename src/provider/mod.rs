@@ -160,6 +160,7 @@ pub trait IdentityProvider: Send + Sync + 'static {
         value: &str,
     ) -> ProviderResult<()>;
 
+    async fn set_user_password(&self, realm: &str, id: &str, password: &str, temporary: bool) -> ProviderResult<()>;
     async fn delete_user(&self, realm: &str, id: &str) -> ProviderResult<()>;
 
     // Groups
