@@ -14,7 +14,7 @@ use uuid::Uuid;
 use crate::{
     auth::{new_csrf_token, csrf_tokens_equal},
     error::AppError,
-    routes::{require_admin, require_session},
+    routes::{pending_changes_count, require_admin, require_session},
     session::{Flash, FLASH_KEY},
     storage::{AuditEntry, AuditOutcome, ChangeStatus},
     AppState,
@@ -54,11 +54,13 @@ async fn list_changes(
         .await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?;
 
+    let pending_count = if current_user.role.is_admin() { pending_changes_count(&state).await } else { 0 };
     let mut ctx = tera::Context::new();
     ctx.insert("user", &current_user);
     ctx.insert("is_admin", &current_user.role.is_admin());
     ctx.insert("active_tab", "changes");
     ctx.insert("changes", &changes);
+    ctx.insert("pending_count", &pending_count);
     ctx.insert("csrf", &csrf);
     ctx.insert("flash", &flash);
 

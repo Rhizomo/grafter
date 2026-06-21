@@ -13,7 +13,7 @@ use crate::{
     auth::{csrf_tokens_equal, new_csrf_token},
     error::AppError,
     provider::{CreateUser, Group, ListUsersQuery},
-    routes::{require_admin, require_session},
+    routes::{pending_changes_count, require_admin, require_session},
     session::{Flash, Role, FLASH_KEY},
     storage::{AuditEntry, AuditOutcome, ChangeStatus, FieldChange, PendingChange},
     AppState,
@@ -77,6 +77,7 @@ async fn list_users(
 
     let users = state.provider.list_users(&realm, &lq).await?;
     let team_groups = load_team_groups(&state, &realm).await?;
+    let pending_count = if current_user.role.is_admin() { pending_changes_count(&state).await } else { 0 };
 
     let csrf = new_csrf_token();
     session
@@ -103,6 +104,7 @@ async fn list_users(
     ctx.insert("users", &users_with_realm);
     ctx.insert("team_groups", &team_groups);
     ctx.insert("search", &q.search);
+    ctx.insert("pending_count", &pending_count);
     ctx.insert("csrf", &csrf);
 
     let html = state
@@ -250,9 +252,11 @@ async fn user_detail(
     ctx.insert("roles", &roles);
     ctx.insert("all_groups", &all_groups);
     ctx.insert("available_roles", &available_roles);
+    let pending_count = if current_user.role.is_admin() { pending_changes_count(&state).await } else { 0 };
     ctx.insert("pending", &pending);
     ctx.insert("team_groups", &team_groups);
     ctx.insert("current_team_group_id", &current_team_group_id);
+    ctx.insert("pending_count", &pending_count);
     ctx.insert("csrf", &csrf);
     ctx.insert("flash", &flash);
 
@@ -413,6 +417,8 @@ async fn new_user_form(
     ctx.insert("realms", &realms);
     ctx.insert("current_realm", &realm);
     ctx.insert("team_groups", &team_groups);
+    let pending_count = if current_user.role.is_admin() { pending_changes_count(&state).await } else { 0 };
+    ctx.insert("pending_count", &pending_count);
     ctx.insert("csrf", &csrf);
 
     let html = state.tera.render("new_user.html", &ctx)

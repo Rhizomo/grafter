@@ -24,6 +24,12 @@ pub fn router(state: AppState) -> Router {
         .with_state(state)
 }
 
+pub async fn pending_changes_count(state: &crate::AppState) -> usize {
+    state.storage.list_changes().await.ok()
+        .map(|cs| cs.iter().filter(|c| c.status == crate::storage::ChangeStatus::Pending).count())
+        .unwrap_or(0)
+}
+
 pub async fn require_session(session: &Session) -> Result<SessionUser, AppError> {
     session
         .get::<SessionUser>(SESSION_KEY)

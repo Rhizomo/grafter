@@ -308,7 +308,9 @@
 
   <div class="links">
     <a href="/users"   {% if active_tab == "users"   %}class="active"{% endif %}>Users</a>
-    <a href="/changes" {% if active_tab == "changes" %}class="active"{% endif %}>Changes</a>
+    <a href="/changes" {% if active_tab == "changes" %}class="active"{% endif %}>
+      Changes{% if is_admin and pending_count and pending_count > 0 %}<span style="margin-left:6px;background:var(--accent);color:var(--bg);font-size:0.65rem;font-weight:700;padding:1px 6px;border-radius:99px;vertical-align:middle;">{{ pending_count }}</span>{% endif %}
+    </a>
     {% if is_admin %}
     <a href="/clients" {% if active_tab == "clients" %}class="active"{% endif %}>Clients</a>
     {% endif %}
