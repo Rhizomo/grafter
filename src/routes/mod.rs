@@ -1,4 +1,5 @@
 pub mod admin;
+pub mod audit;
 pub mod auth;
 pub mod changes;
 pub mod clients;
@@ -19,6 +20,7 @@ pub fn router(state: AppState) -> Router {
         .route("/health", get(|| async { "ok" }))
         .merge(auth::router())
         .merge(admin::router())
+        .merge(audit::router())
         .merge(users::router())
         .merge(changes::router())
         .merge(teams::router())

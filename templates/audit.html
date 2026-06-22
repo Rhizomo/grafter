@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Audit Log — Grafter{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Audit Log</h1>
+  <div>
+    <label for="date-pick" style="display:block;text-align:right;margin-bottom:4px;">Date</label>
+    <input type="date" id="date-pick" value="{{ selected_date }}"
+           onchange="window.location='/audit?date='+this.value"
+           style="font-size:0.84rem;">
+  </div>
+</div>
+
+{% if not entries %}
+<div style="padding:80px 0; text-align:center;">
+  <p style="font-size:0.9rem; font-weight:500; color:var(--muted);">No activity recorded for this date.</p>
+</div>
+{% else %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>When</th>
+        <th>Actor</th>
+        <th>Action</th>
+        <th>Target user</th>
+        <th>Detail</th>
+        <th>Outcome</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in entries %}
+      <tr class="audit-entry">
+        <td style="white-space:nowrap; color:var(--muted2); font-size:0.78rem;">
+          <span class="ts">{{ e.timestamp }}</span>
+        </td>
+        <td style="font-weight:500; color:var(--text-strong);">{{ e.actor }}</td>
+        <td>
+          <code style="font-size:0.76rem;">{{ e.action }}</code>
+        </td>
+        <td style="color:var(--muted);">
+          {% if e.target_user %}{{ e.target_user }}{% else %}<span style="color:var(--muted2);">—</span>{% endif %}
+        </td>
+        <td style="color:var(--text); font-size:0.82rem; max-width:280px;">{{ e.detail }}</td>
+        <td>
+          {% if e.outcome == "success" %}
+            <span class="dot dot-on" title="success"></span>
+            <span style="font-size:0.8rem; color:var(--accent);">success</span>
+          {% else %}
+            <span class="dot dot-off" style="background:var(--danger);" title="failure"></span>
+            <span style="font-size:0.8rem; color:var(--danger);">failure</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}
