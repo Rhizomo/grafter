@@ -17,6 +17,7 @@ use std::{
     time::Instant,
 };
 use tera::Tera;
+use tower_http::services::ServeDir;
 use tower_sessions::{cookie::SameSite, SessionManagerLayer};
 use fred::clients::RedisPool;
 use tower_sessions_redis_store::{fred::prelude::*, RedisStore};
@@ -99,6 +100,7 @@ async fn main() -> Result<()> {
         .with_same_site(SameSite::Lax);
 
     let app = Router::new()
+        .nest_service("/static", ServeDir::new("static"))
         .merge(routes::router(state))
         .layer(session_layer);
 

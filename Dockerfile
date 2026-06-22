@@ -10,6 +10,7 @@ RUN rm -rf src
 
 COPY src ./src
 COPY templates ./templates
+COPY static ./static
 RUN touch src/main.rs && cargo build --release --locked
 
 # ── Final image ────────────────────────────────────────────────────────────────
@@ -19,6 +20,7 @@ WORKDIR /app
 
 COPY --from=builder /build/target/release/grafter ./grafter
 COPY --from=builder /build/templates ./templates
+COPY static ./static
 
 EXPOSE 3000
 
