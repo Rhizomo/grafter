@@ -36,7 +36,7 @@
           <tr>
             <th>User</th>
             <th>Role</th>
-            <th style="width:80px;"></th>
+            <th style="width:130px;"></th>
           </tr>
         </thead>
         <tbody>
@@ -56,15 +56,18 @@
               {% endif %}
             </td>
             <td>
-              <form method="post" action="/admin/revoke" onsubmit="return confirm('Revoke access for {{ u.username }}?');">
-                <input type="hidden" name="csrf_token" value="{{ csrf }}">
-                <input type="hidden" name="realm" value="{{ current_realm }}">
-                <input type="hidden" name="user_id" value="{{ u.id }}">
-                <input type="hidden" name="username" value="{{ u.username }}">
-                <input type="hidden" name="role_name" value="{% if u.role == 'admin' %}{{ admin_role }}{% else %}{{ op_role }}{% endif %}">
-                <input type="hidden" name="role_id" value="">
-                <button type="submit" class="btn btn-danger btn-sm">Revoke</button>
-              </form>
+              <div style="display:flex;gap:6px;align-items:center;">
+                <a href="/users/{{ u.realm }}/{{ u.id }}" class="btn btn-ghost btn-sm">View</a>
+                <form method="post" action="/admin/revoke" onsubmit="return confirm('Revoke access for {{ u.username }}?');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf }}">
+                  <input type="hidden" name="realm" value="{{ current_realm }}">
+                  <input type="hidden" name="user_id" value="{{ u.id }}">
+                  <input type="hidden" name="username" value="{{ u.username }}">
+                  <input type="hidden" name="role_name" value="{% if u.role == 'admin' %}{{ admin_role }}{% else %}{{ op_role }}{% endif %}">
+                  <input type="hidden" name="role_id" value="">
+                  <button type="submit" class="btn btn-danger btn-sm">Revoke</button>
+                </form>
+              </div>
             </td>
           </tr>
           {% endfor %}

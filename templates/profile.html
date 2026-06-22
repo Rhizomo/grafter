@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}My Profile — Grafter{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>My Profile</h1>
+  <a href="/users/{{ realm }}/{{ subject.id }}" class="btn btn-ghost btn-sm">Edit →</a>
+</div>
+
+<div style="display:grid; grid-template-columns:1fr 320px; gap:24px; align-items:start; max-width:900px;">
+
+  <!-- Identity card -->
+  <div class="card">
+    <h2>Identity</h2>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 20px;">
+      <div class="field">
+        <label>First name</label>
+        <div class="profile-value">{{ subject.first_name | default(value='—') }}</div>
+      </div>
+      <div class="field">
+        <label>Last name</label>
+        <div class="profile-value">{{ subject.last_name | default(value='—') }}</div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Username</label>
+      <div class="profile-value"><code style="font-size:0.9em;">{{ subject.username }}</code></div>
+    </div>
+
+    <div class="field">
+      <label>Email</label>
+      <div class="profile-value">{{ subject.email | default(value='—') }}</div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 20px;">
+      <div class="field">
+        <label>Phone number</label>
+        <div class="profile-value">
+          {{ subject.attributes.phone_number | default(value=[]) | first | default(value='—') }}
+        </div>
+      </div>
+      <div class="field">
+        <label>Personnel code</label>
+        <div class="profile-value">
+          {{ subject.attributes.personnel_code | default(value=[]) | first | default(value='—') }}
+        </div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Team</label>
+      <div class="profile-value">
+        {% set team = subject.attributes.team | default(value=[]) | first | default(value='') %}
+        {% if team %}
+          <span style="color:var(--teal);">{{ team }}</span>
+        {% else %}
+          <span style="color:var(--muted2);">—</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="field" style="margin-bottom:0;">
+      <label>Account status</label>
+      <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
+        <span class="dot {% if subject.enabled %}dot-on{% else %}dot-off{% endif %}"></span>
+        <span style="font-size:0.875rem; {% if not subject.enabled %}color:var(--muted);{% endif %}">
+          {% if subject.enabled %}Active{% else %}Disabled{% endif %}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right column -->
+  <div>
+    <!-- Grafter role card -->
+    <div class="card">
+      <h2>Grafter role</h2>
+      {% if user.role == "admin" %}
+        <span class="role-badge admin">admin</span>
+        <p style="font-size:0.8rem; color:var(--muted); margin-top:10px; line-height:1.55;">
+          Full access. Can approve changes, manage users, and configure access.
+        </p>
+      {% else %}
+        <span class="role-badge operator">operator</span>
+        <p style="font-size:0.8rem; color:var(--muted); margin-top:10px; line-height:1.55;">
+          Can create users and propose changes for admin approval.
+        </p>
+      {% endif %}
+    </div>
+
+    <!-- Realm roles card -->
+    <div class="card" style="margin-top:0;">
+      <h2>Realm roles</h2>
+      {% if roles %}
+        <div style="display:flex; flex-wrap:wrap; gap:6px;">
+          {% for r in roles %}
+            <span class="pill pill-teal">{{ r.name }}</span>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p style="color:var(--muted); font-size:0.84rem;">No roles assigned.</p>
+      {% endif %}
+    </div>
+
+    <!-- Groups card -->
+    {% if groups %}
+    <div class="card" style="margin-top:0;">
+      <h2>Groups</h2>
+      <ul style="list-style:none; display:flex; flex-direction:column; gap:4px;">
+        {% for g in groups %}
+          <li style="font-size:0.83rem; color:var(--text); display:flex; align-items:center; gap:8px;">
+            <span style="color:var(--muted2);">›</span> {{ g.path }}
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<style>
+  .profile-value {
+    font-size: 0.875rem;
+    color: var(--text-strong);
+    padding: 8px 0 4px;
+    border-bottom: 1px solid var(--border);
+    min-height: 34px;
+  }
+</style>
+{% endblock %}

@@ -143,6 +143,12 @@
     .role-badge.admin    { color: var(--accent); border-color: rgba(0,230,118,0.4); background: var(--accent-glow); }
     .role-badge.operator { color: var(--warning); border-color: rgba(255,183,77,0.4); background: rgba(255,183,77,0.08); }
 
+    .sidebar-profile-link {
+      text-decoration: none; display: block;
+      transition: color 0.13s;
+    }
+    .sidebar-profile-link:hover { color: var(--teal); }
+
     .sidebar-signout {
       font-size: 0.76rem; color: var(--muted);
       text-decoration: none; display: inline-block;
@@ -514,7 +520,7 @@
   <!-- User foot -->
   {% if user %}
   <div class="sidebar-foot">
-    <div class="sidebar-username">{{ user.username }}</div>
+    <a href="/profile" class="sidebar-username sidebar-profile-link">{{ user.username }}</a>
     {% if user.role == "admin" %}
       <span class="role-badge admin">admin</span>
     {% else %}
