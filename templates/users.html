@@ -31,7 +31,7 @@
 
 <div class="page-header">
   <h1>Users</h1>
-  <a href="/users/new" class="btn btn-primary">+ New user</a>
+  {% if is_admin %}<a href="/users/new" class="btn btn-primary">+ New user</a>{% endif %}
 </div>
 
 <!-- Filter bar -->
@@ -101,12 +101,11 @@
     <thead>
       <tr>
         {% if is_admin %}<th style="width:38px; padding:11px 12px;"><input type="checkbox" id="select-all" onchange="toggleAll(this)"></th>{% endif %}
-        <th style="width:42px;">#</th>
-        <th class="sortable sorted" data-col="2" data-dir="asc">Username<span class="sort-ind">▲</span></th>
-        <th class="sortable" data-col="3">Name<span class="sort-ind">▲</span></th>
+        <th class="sortable sorted" data-col="{% if is_admin %}1{% else %}0{% endif %}" data-dir="asc">Username<span class="sort-ind">▲</span></th>
+        <th class="sortable" data-col="{% if is_admin %}2{% else %}1{% endif %}">Name<span class="sort-ind">▲</span></th>
         <th class="col-realm">Realm</th>
-        <th class="sortable" data-col="5">Status<span class="sort-ind">▲</span></th>
-        <th class="sortable" data-col="6">Team<span class="sort-ind">▲</span></th>
+        <th class="sortable" data-col="{% if is_admin %}4{% else %}3{% endif %}">Status<span class="sort-ind">▲</span></th>
+        <th class="sortable" data-col="{% if is_admin %}5{% else %}4{% endif %}">Team<span class="sort-ind">▲</span></th>
         <th style="width:24px;"></th>
       </tr>
     </thead>
@@ -125,7 +124,6 @@
           <input type="checkbox" class="row-cb" data-id="{{ u.id }}" data-realm="{{ u.realm }}" onchange="onCheck()">
         </td>
         {% endif %}
-        <td style="color:var(--muted); font-size:0.76rem; font-variant-numeric:tabular-nums; padding-right:0;">{{ loop.index }}</td>
         <td>
           <a href="/users/{{ u.realm }}/{{ u.id }}" class="link-primary">{{ u.username }}</a>
         </td>

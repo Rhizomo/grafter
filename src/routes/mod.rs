@@ -3,6 +3,7 @@ pub mod audit;
 pub mod auth;
 pub mod changes;
 pub mod clients;
+pub mod emergency;
 pub mod profile;
 pub mod teams;
 pub mod users;
@@ -22,6 +23,7 @@ pub fn router(state: AppState) -> Router {
         .merge(auth::router())
         .merge(admin::router())
         .merge(audit::router())
+        .merge(emergency::router())
         .merge(profile::router())
         .merge(users::router())
         .merge(changes::router())

@@ -8,6 +8,14 @@
   <h1>Changes</h1>
 </div>
 
+<!-- Status tabs -->
+<div class="tab-bar" style="margin-bottom:16px;">
+  <button class="tab" data-filter="pending" id="tab-pending">Pending</button>
+  <button class="tab" data-filter="approved" id="tab-approved">Approved</button>
+  <button class="tab" data-filter="rejected" id="tab-rejected">Rejected</button>
+  <button class="tab" data-filter="" id="tab-all">All</button>
+</div>
+
 {% if not changes %}
 <div style="padding:64px 0;text-align:center;">
   <p style="font-size:0.9rem;font-weight:500;color:var(--text-strong);margin-bottom:6px;">The queue is empty.</p>
@@ -40,7 +48,7 @@
     </thead>
     <tbody>
       {% for c in changes %}
-      <tr>
+      <tr data-status="{{ c.status }}">
         {% if is_admin %}
         <td style="padding:12px;">
           {% if c.status == "pending" %}
@@ -74,7 +82,7 @@
           {% endfor %}
         </td>
         <td style="color:var(--text); font-weight:500;">{{ c.proposed_by }}</td>
-        <td style="color:var(--muted2); font-size:0.78rem; white-space:nowrap;">{{ c.proposed_at }}</td>
+        <td style="color:var(--muted2); font-size:0.78rem; white-space:nowrap;"><span class="ts">{{ c.proposed_at }}</span></td>
         <td>
           {% if c.status == "pending" %}
             <span class="pill pill-yellow">pending</span>
@@ -83,7 +91,7 @@
           {% elif c.status == "rejected" %}
             <span class="pill pill-red">rejected</span>
             {% if c.reject_reason %}
-              <div style="font-size:0.74rem; color:var(--muted); margin-top:3px;">{{ c.reject_reason }}</div>
+              <div style="font-size:0.76rem; color:var(--muted); margin-top:5px; line-height:1.4; max-width:220px;">{{ c.reject_reason }}</div>
             {% endif %}
           {% endif %}
         </td>
@@ -105,6 +113,9 @@
       {% endfor %}
     </tbody>
   </table>
+</div>
+<div id="changes-empty-filter" style="display:none;padding:64px 0;text-align:center;">
+  <p style="font-size:0.9rem;font-weight:500;color:var(--text-strong);">No changes with this status.</p>
 </div>
 {% endif %}
 
@@ -130,6 +141,29 @@
 <script>
 const CSRF = document.getElementById('csrf-token').value;
 const overlay = document.getElementById('reject-overlay');
+
+// ── Status tabs ───────────────────────────────────────────────────────────────
+
+(function() {
+  const tabs = document.querySelectorAll('.tab-bar .tab');
+  function applyFilter(filter) {
+    tabs.forEach(t => t.classList.toggle('active', t.dataset.filter === filter));
+    document.querySelectorAll('tr[data-status]').forEach(row => {
+      row.style.display = (!filter || row.dataset.status === filter) ? '' : 'none';
+    });
+    const tbody = document.querySelector('tbody');
+    const empty = document.getElementById('changes-empty-filter');
+    if (empty && tbody) {
+      const visible = tbody.querySelectorAll('tr[data-status]:not([style*="display: none"])').length;
+      empty.style.display = visible === 0 ? '' : 'none';
+    }
+    localStorage.setItem('changes-filter', filter);
+  }
+  tabs.forEach(tab => tab.addEventListener('click', () => applyFilter(tab.dataset.filter)));
+  // Default: pending (or restore last choice)
+  const saved = localStorage.getItem('changes-filter');
+  applyFilter(saved !== null ? saved : 'pending');
+})();
 let rejectCtx = null; // { mode: 'single'|'bulk', ids: string[] }
 
 // ── Checkbox / selection ──────────────────────────────────────────────────────

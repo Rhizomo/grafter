@@ -233,9 +233,10 @@ async fn user_detail(
         .await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?;
 
-    // Roles not yet assigned
+    // Roles not yet assigned — sorted alphabetically
     let assigned_ids: std::collections::HashSet<&str> = roles.iter().map(|r| r.id.as_str()).collect();
-    let available_roles: Vec<_> = all_roles.iter().filter(|r| !assigned_ids.contains(r.id.as_str())).collect();
+    let mut available_roles: Vec<_> = all_roles.iter().filter(|r| !assigned_ids.contains(r.id.as_str())).collect();
+    available_roles.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 
     let flash: Option<Flash> = session
         .remove(FLASH_KEY)
@@ -398,7 +399,7 @@ async fn new_user_form(
     session: Session,
     Query(q): Query<ListQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let current_user = require_session(&session).await?;
+    let current_user = require_admin(&session).await?;
 
     let realms = state.provider.list_realms().await?;
     let realm = q.realm.clone()
@@ -448,7 +449,7 @@ async fn create_user(
     session: Session,
     Form(form): Form<NewUserForm>,
 ) -> Result<impl IntoResponse, AppError> {
-    let current_user = require_session(&session).await?;
+    let current_user = require_admin(&session).await?;
 
     let session_csrf: String = session.get("csrf").await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?

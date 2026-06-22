@@ -33,6 +33,9 @@ pub struct Config {
     // Session (must be >= 32 bytes)
     pub session_secret: String,
     pub redis_url: String,
+
+    // Break-glass emergency promotion (disabled if not set)
+    pub emergency_token: Option<String>,
 }
 
 impl Config {
@@ -67,6 +70,9 @@ impl Config {
                 s
             },
             redis_url: env_or("REDIS_URL", "redis://127.0.0.1:6379"),
+
+            emergency_token: env::var("EMERGENCY_TOKEN").ok()
+                .filter(|s| !s.is_empty()),
         }
     }
 }

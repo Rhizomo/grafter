@@ -10,7 +10,12 @@ mod storage;
 use anyhow::Result;
 use axum::Router;
 use reqwest::Client;
-use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    net::SocketAddr,
+    sync::{Arc, Mutex},
+    time::Instant,
+};
 use tera::Tera;
 use tower_sessions::{cookie::SameSite, SessionManagerLayer};
 use fred::clients::RedisPool;
@@ -22,6 +27,8 @@ use config::Config;
 use provider::{keycloak::KeycloakProvider, IdentityProvider};
 use storage::{s3::S3Storage, ChangeStorage};
 
+pub type EmergencyLimiter = Arc<Mutex<HashMap<String, Vec<Instant>>>>;
+
 #[derive(Clone)]
 pub struct AppState {
     pub config: Arc<Config>,
@@ -31,6 +38,7 @@ pub struct AppState {
     pub http: Client,
     pub jwks: Arc<JwksCache>,
     pub redis: RedisPool,
+    pub emergency_limiter: EmergencyLimiter,
 }
 
 #[tokio::main]
@@ -81,6 +89,7 @@ async fn main() -> Result<()> {
         http,
         jwks,
         redis: redis_pool,
+        emergency_limiter: Arc::new(Mutex::new(HashMap::new())),
     };
 
     let is_https = config.oidc_redirect_uri.starts_with("https://");
@@ -97,7 +106,7 @@ async fn main() -> Result<()> {
     tracing::info!("grafter listening on {addr}");
 
     let listener = tokio::net::TcpListener::bind(&addr).await?;
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>()).await?;
 
     Ok(())
 }

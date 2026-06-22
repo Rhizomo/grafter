@@ -4,7 +4,9 @@
 {% block content %}
 <div class="page-header">
   <h1>My Profile</h1>
-  <a href="/users/{{ realm }}/{{ subject.id }}" class="btn btn-ghost btn-sm">Edit →</a>
+  <a href="/users/{{ realm }}/{{ subject.id }}" class="btn btn-ghost btn-sm">
+    {% if is_admin %}Edit →{% else %}View detail →{% endif %}
+  </a>
 </div>
 
 <div style="display:grid; grid-template-columns:1fr 320px; gap:24px; align-items:start; max-width:900px;">

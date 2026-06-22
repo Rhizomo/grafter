@@ -129,24 +129,48 @@
 
       {% if is_admin and available_roles %}
       <hr>
-      <form method="post" action="/users/{{ realm }}/{{ subject.id }}/roles/assign" style="display:flex; gap:8px; align-items:center; margin-top:14px;">
-        <input type="hidden" name="csrf_token" value="{{ csrf }}">
-        <select name="role_id" style="flex:1; font-size:0.82rem; padding:6px 10px;">
-          {% for r in available_roles %}
-            <option value="{{ r.id }}">{{ r.name }}</option>
-          {% endfor %}
-        </select>
-        <button type="submit" class="btn btn-success btn-sm">Assign</button>
-      </form>
+      <div style="margin-top:14px;">
+        <input type="search" id="role-search" placeholder="Filter roles…"
+               style="width:100%; font-size:0.81rem; padding:5px 10px; margin-bottom:6px;"
+               autocomplete="off">
+        <form method="post" action="/users/{{ realm }}/{{ subject.id }}/roles/assign" style="display:flex; gap:8px; align-items:center;">
+          <input type="hidden" name="csrf_token" value="{{ csrf }}">
+          <select name="role_id" id="role-select" style="flex:1; font-size:0.82rem; padding:6px 10px;" size="1">
+            {% for r in available_roles %}
+              <option value="{{ r.id }}">{{ r.name }}</option>
+            {% endfor %}
+          </select>
+          <button type="submit" class="btn btn-success btn-sm">Assign</button>
+        </form>
+      </div>
+      <script>
+        (function() {
+          var search = document.getElementById('role-search');
+          var select = document.getElementById('role-select');
+          var allOpts = Array.from(select.options).map(function(o) { return { value: o.value, text: o.text }; });
+          search.addEventListener('input', function() {
+            var q = this.value.toLowerCase();
+            var prev = select.value;
+            select.innerHTML = '';
+            allOpts.filter(function(o) { return !q || o.text.toLowerCase().includes(q); })
+              .forEach(function(o) {
+                var opt = document.createElement('option');
+                opt.value = o.value; opt.text = o.text;
+                if (o.value === prev) opt.selected = true;
+                select.appendChild(opt);
+              });
+          });
+        })();
+      </script>
       {% endif %}
     </div>
 
-    <div class="card">
-      <h2>Groups</h2>
+    <div class="card" style="margin-top:0;">
+      <h2 style="margin-bottom:10px;">Groups</h2>
       {% if groups %}
-        <ul style="list-style:none; display:flex; flex-direction:column; gap:6px;">
+        <ul style="list-style:none; display:flex; flex-direction:column; gap:4px;">
           {% for g in groups %}
-            <li style="font-size:0.84rem; color:var(--text); display:flex; align-items:center; gap:8px;">
+            <li style="font-size:0.83rem; color:var(--text); display:flex; align-items:center; gap:8px;">
               <span style="color:var(--muted2);">›</span> {{ g.path }}
             </li>
           {% endfor %}
@@ -251,7 +275,7 @@
             <td style="color:var(--muted);">{{ f.before | default(value='—') }}</td>
             <td style="color:var(--text-strong);">{{ f.after }}</td>
             <td style="color:var(--muted);">{{ c.proposed_by }}</td>
-            <td style="color:var(--muted2); font-size:0.78rem;">{{ c.proposed_at }}</td>
+            <td style="color:var(--muted2); font-size:0.78rem;"><span class="ts">{{ c.proposed_at }}</span></td>
           </tr>
           {% endfor %}
         {% endfor %}

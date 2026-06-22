@@ -41,7 +41,7 @@
         <td>
           <a href="/clients/{{ current_realm }}/{{ c.id }}" class="link-primary">{{ c.client_id }}</a>
         </td>
-        <td style="color:var(--muted);">{{ c.name | default(value='—') }}</td>
+        <td style="color:var(--muted);" data-name="{{ c.name | default(value='') }}">{{ c.name | default(value='—') }}</td>
         <td style="color:var(--muted); font-size:0.82rem; text-transform:uppercase; letter-spacing:0.3px;">
           {{ c.protocol | default(value='—') }}
         </td>
@@ -77,6 +77,12 @@
 </div>
 
 <script>
+// Resolve KC i18n placeholders like ${client_account}
+document.querySelectorAll('td[data-name]').forEach(function(td) {
+  var n = td.dataset.name;
+  if (n && n.startsWith('${') && n.endsWith('}')) td.textContent = '—';
+});
+
 function filterClients() {
   const q = document.getElementById('search').value.toLowerCase();
   let visible = 0;

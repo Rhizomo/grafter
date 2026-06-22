@@ -22,7 +22,7 @@ pub fn router() -> Router<AppState> {
         .route("/auth/login", get(login))
         .route("/auth/start", get(start_login))
         .route("/auth/callback", get(callback))
-        .route("/auth/logout", get(logout))
+        .route("/auth/logout", get(logout).post(logout))
 }
 
 /// Render the login landing page. Linked to by AppError::Unauthorized and
