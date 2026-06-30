@@ -370,6 +370,8 @@
       transform: translateY(-2px);
       border-color: var(--border2);
     }
+    /* Form cards should not bounce — it's distracting when interacting with inputs */
+    .card:has(form):hover { transform: none; }
     .card-anim { animation: card-rise 0.38s cubic-bezier(0.16,1,0.3,1) both; }
 
     /* Table wrap shadow */
