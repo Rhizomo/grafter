@@ -1,4 +1,4 @@
-FROM rust:slim AS builder
+FROM public.repo.smartech.ir/library/rust:slim AS builder
 
 WORKDIR /build
 
@@ -14,7 +14,7 @@ COPY static ./static
 RUN touch src/main.rs && cargo build --release --locked
 
 # ── Final image ────────────────────────────────────────────────────────────────
-FROM gcr.io/distroless/cc-debian12
+FROM public.repo.smartech.ir/library/debian:bookworm-slim
 
 WORKDIR /app
 
