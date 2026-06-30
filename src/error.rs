@@ -43,9 +43,25 @@ pub enum ProviderError {
     Conflict(String),
 }
 
+fn he(s: &str) -> String {
+    s.chars().fold(String::with_capacity(s.len()), |mut out, c| {
+        match c {
+            '&'  => out.push_str("&amp;"),
+            '<'  => out.push_str("&lt;"),
+            '>'  => out.push_str("&gt;"),
+            '"'  => out.push_str("&quot;"),
+            '\'' => out.push_str("&#39;"),
+            _    => out.push(c),
+        }
+        out
+    })
+}
+
 fn error_page(status: StatusCode, title: &str, detail: &str, back: Option<&str>) -> Response {
+    let title  = he(title);
+    let detail = he(detail);
     let back_html = match back {
-        Some(url) => format!(r#"<a href="{url}" class="btn">← Go back</a>"#),
+        Some(url) => format!(r#"<a href="{}" class="btn">← Go back</a>"#, he(url)),
         None      => r#"<button onclick="history.back()" class="btn">← Go back</button>"#.to_string(),
     };
     let html = format!(r#"<!doctype html><html lang="en"><head>

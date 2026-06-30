@@ -10,6 +10,7 @@ use std::{net::SocketAddr, time::Instant};
 use uuid::Uuid;
 
 use crate::{
+    auth::csrf_tokens_equal,
     provider::ListUsersQuery,
     storage::{AuditEntry, AuditOutcome},
     AppState,
@@ -68,8 +69,8 @@ pub async fn emergency_promote(
         attempts.push(Instant::now());
     }
 
-    // Verify token
-    if body.token != *expected {
+    // Verify token (constant-time to prevent timing attacks)
+    if !csrf_tokens_equal(&body.token, expected) {
         eprintln!("[{ts}] emergency/{ip}: invalid token for username='{}'", body.username);
         return deny("forbidden");
     }

@@ -19,6 +19,21 @@ use crate::{
     AppState,
 };
 
+// ── Realm helpers ─────────────────────────────────────────────────────────────
+
+/// The realm operators are allowed to work in — derived from OIDC issuer.
+fn operator_realm(state: &AppState) -> &str {
+    state.config.oidc_issuer.rsplit('/').next().unwrap_or("smartech")
+}
+
+/// Returns Err(Forbidden) if a non-admin tries to access a realm they don't own.
+fn check_realm_access(state: &AppState, current_user: &crate::session::SessionUser, realm: &str) -> Result<(), AppError> {
+    if !current_user.role.is_admin() && realm != operator_realm(state) {
+        return Err(AppError::Forbidden);
+    }
+    Ok(())
+}
+
 // ── Team group helpers ────────────────────────────────────────────────────────
 
 async fn load_team_groups(state: &AppState, realm: &str) -> Result<Vec<Group>, AppError> {
@@ -205,6 +220,7 @@ async fn user_detail(
     Path((realm, id)): Path<(String, String)>,
 ) -> Result<impl IntoResponse, AppError> {
     let current_user = require_session(&session).await?;
+    check_realm_access(&state, &current_user, &realm)?;
 
     let user = state.provider.get_user(&realm, &id).await?;
     let groups = state.provider.get_user_groups(&realm, &id).await?;
@@ -300,6 +316,8 @@ async fn edit_user(
     if !csrf_tokens_equal(&form.csrf_token, &session_csrf) {
         return Err(AppError::CsrfMismatch);
     }
+
+    check_realm_access(&state, &current_user, &realm)?;
 
     let existing = state.provider.get_user(&realm, &id).await?;
     let mut diff = Vec::new();
@@ -402,8 +420,11 @@ async fn new_user_form(
     let current_user = require_session(&session).await?;
 
     let realms = state.provider.list_realms().await?;
-    let realm = q.realm.clone()
-        .unwrap_or_else(|| realms.first().map(|r| r.name.clone()).unwrap_or_default());
+    let realm = if current_user.role.is_admin() {
+        q.realm.clone().unwrap_or_else(|| realms.first().map(|r| r.name.clone()).unwrap_or_default())
+    } else {
+        operator_realm(&state).to_string()
+    };
 
     let team_groups = load_team_groups(&state, &realm).await?;
 
@@ -457,6 +478,8 @@ async fn create_user(
     if !csrf_tokens_equal(&form.csrf_token, &session_csrf) {
         return Err(AppError::CsrfMismatch);
     }
+
+    check_realm_access(&state, &current_user, &form.realm)?;
 
     // Resolve team group (id + name)
     let team_group: Option<(String, String)> = match &form.team_group_id {

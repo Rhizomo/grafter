@@ -2,12 +2,49 @@
 {% block title %}New User — Grafter{% endblock %}
 
 {% block content %}
+<style>
+  .form-section-label {
+    font-size: 0.65rem; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase;
+    color: var(--muted2); padding: 14px 0 10px; display: flex; align-items: center; gap: 10px;
+  }
+  .form-section-label::after {
+    content: ''; flex: 1; height: 1px; background: var(--border);
+  }
+  .username-auto-hint {
+    font-size: 0.68rem; color: var(--muted2); margin-top: 4px; letter-spacing: 0;
+    text-transform: none; font-weight: 400; transition: color 0.2s;
+  }
+  .username-auto-hint.active { color: var(--teal); }
+  .pw-gen-btn {
+    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; color: var(--muted); cursor: pointer; padding: 0;
+    line-height: 1; display: flex; align-items: center; gap: 5px;
+    font-size: 0.72rem; font-weight: 500; font-family: inherit; letter-spacing: 0.2px;
+    transition: color 0.15s;
+  }
+  .pw-gen-btn:hover { color: var(--teal); }
+  .pw-copy-toast {
+    position: absolute; right: 38px; top: 50%; transform: translateY(-50%);
+    background: var(--surface2); border: 1px solid var(--teal);
+    color: var(--teal); font-size: 0.68rem; font-weight: 600; padding: 2px 8px;
+    border-radius: 5px; white-space: nowrap; opacity: 0;
+    transition: opacity 0.2s; pointer-events: none; letter-spacing: 0; text-transform: none;
+  }
+</style>
+
 <nav style="display:flex;align-items:center;gap:6px;margin-bottom:16px;font-size:0.78rem;" aria-label="breadcrumb">
   <a href="/users?realm={{ current_realm }}" style="color:var(--teal);">Users</a>
   <span style="color:var(--muted2);">/</span>
   <span style="color:var(--muted);">New user</span>
 </nav>
 <h1 style="margin:8px 0 24px;">New user</h1>
+
+{% if not is_admin %}
+<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;background:rgba(0,191,165,0.07);border:1px solid rgba(0,191,165,0.25);border-radius:var(--radius);margin-bottom:20px;font-size:0.82rem;color:var(--teal);max-width:900px;">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+  This account will be created immediately. An admin can assign roles and services access afterwards.
+</div>
+{% endif %}
 
 <div style="display:grid;grid-template-columns:1fr 300px;gap:28px;align-items:start;max-width:900px;">
   <div class="card">
@@ -25,43 +62,35 @@
           {% endfor %}
         </select>
       </div>
+      <div class="form-section-label">Identity</div>
       {% else %}
       <input type="hidden" name="realm" value="{{ current_realm }}">
+      <div class="form-section-label" style="padding-top:0;">Identity</div>
       {% endif %}
-
-      <div class="field">
-        <label for="new_username">Username <span style="color:var(--accent);">*</span></label>
-        <input type="text" id="new_username" name="username" required autocomplete="username"
-               placeholder="firstname.lastname" style="width:100%;">
-      </div>
 
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 14px;">
         <div class="field">
           <label for="new_first_name">First name</label>
-          <input type="text" id="new_first_name" name="first_name" autocomplete="given-name" style="width:100%;">
+          <input type="text" id="new_first_name" name="first_name" autocomplete="given-name" style="width:100%;" oninput="autoUsername()">
         </div>
         <div class="field">
           <label for="new_last_name">Last name</label>
-          <input type="text" id="new_last_name" name="last_name" autocomplete="family-name" style="width:100%;">
+          <input type="text" id="new_last_name" name="last_name" autocomplete="family-name" style="width:100%;" oninput="autoUsername()">
         </div>
       </div>
+
+      <div class="field">
+        <label for="new_username">Username <span style="color:var(--accent);">*</span></label>
+        <input type="text" id="new_username" name="username" required autocomplete="username"
+               placeholder="firstname.lastname" style="width:100%;" oninput="onUsernameInput()">
+        <p id="username-hint" class="username-auto-hint">Fill first &amp; last name to auto-generate.</p>
+      </div>
+
+      <div class="form-section-label">Contact</div>
 
       <div class="field">
         <label for="new_email">Email</label>
-        <input type="email" id="new_email" name="email" autocomplete="email" placeholder="user@domain.ir" style="width:100%;">
-      </div>
-
-      <div class="field">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
-          <label for="new_team" style="margin:0;">Team</label>
-          {% if is_admin %}
-          <a href="#create-team-modal" id="open-team-modal" style="font-size:0.72rem;color:var(--teal);">+ New team</a>
-          {% endif %}
-        </div>
-        <select id="new_team" name="team_group_id" style="width:100%;">
-          <option value="">— none —</option>
-          {% for g in team_groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
-        </select>
+        <input type="email" id="new_email" name="email" autocomplete="email" placeholder="firstname.lastname@smartech.ir" style="width:100%;">
       </div>
 
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 14px;">
@@ -75,28 +104,50 @@
         </div>
       </div>
 
+      <div class="form-section-label">Access</div>
+
       <div class="field">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
-          <label for="new_password" style="margin:0;">Password
-            <span style="color:var(--muted); font-weight:400;">(optional)</span>
+          <label for="new_team" style="margin:0;">Team</label>
+          {% if is_admin %}
+          <a href="#create-team-modal" id="open-team-modal" style="font-size:0.72rem;color:var(--teal);text-transform:none;letter-spacing:0;">+ New team</a>
+          {% endif %}
+        </div>
+        <select id="new_team" name="team_group_id" style="width:100%;">
+          <option value="">— none —</option>
+          {% for g in team_groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
+        </select>
+      </div>
+
+      <div class="field">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
+          <label for="new_password" style="margin:0;">Temporary password
+            <span style="color:var(--muted2); font-weight:400; text-transform:none; letter-spacing:0;">(optional)</span>
           </label>
         </div>
         <div style="position:relative;">
-          <input type="password" id="new_password" name="password" autocomplete="new-password" style="width:100%;padding-right:40px;">
+          <input type="password" id="new_password" name="password" autocomplete="new-password"
+                 style="width:100%;padding-right:86px;">
+          <span id="pw-copy-toast" class="pw-copy-toast">Copied!</span>
           <button type="button" id="toggle-pw" tabindex="-1" aria-label="Show password"
                   style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;padding:0;line-height:1;display:flex;align-items:center;">
-            <svg id="toggle-pw-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            <svg id="toggle-pw-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+          <button type="button" id="gen-pw" class="pw-gen-btn" style="right:34px;" title="Generate password">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+            Gen
           </button>
         </div>
+        <p id="pw-strength" style="font-size:0.68rem;color:var(--muted2);margin-top:4px;letter-spacing:0;text-transform:none;font-weight:400;min-height:1em;"></p>
       </div>
       <div class="field" style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
         <input type="checkbox" name="password_temporary" id="password_temporary" checked>
-        <label for="password_temporary" style="margin:0; color:var(--text);">Temporary — user must change on next login</label>
+        <label for="password_temporary" style="margin:0; color:var(--text); text-transform:none; letter-spacing:0; font-weight:400; font-size:0.875rem;">User must change on next login</label>
       </div>
 
       <div class="field" style="display:flex; align-items:center; gap:10px; margin-bottom:24px;">
         <input type="checkbox" name="enabled" id="enabled" checked>
-        <label for="enabled" style="margin:0; color:var(--text);">Account enabled</label>
+        <label for="enabled" style="margin:0; color:var(--text); text-transform:none; letter-spacing:0; font-weight:400; font-size:0.875rem;">Account enabled</label>
       </div>
 
       <div style="display:flex; gap:10px; align-items:center;">
@@ -108,41 +159,151 @@
 
   <!-- Context sidebar -->
   <div style="font-size:0.81rem;color:var(--muted);line-height:1.65;">
-    <h3 style="font-size:0.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px;">After creation</h3>
-    <p>Account is created immediately. Roles and group memberships must be assigned separately — this form does not do that.</p>
+    {% if not is_admin %}
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 18px;margin-bottom:20px;">
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div style="display:flex;align-items:flex-start;gap:10px;">
+          <span style="color:var(--accent);font-size:0.9rem;flex-shrink:0;margin-top:1px;">①</span>
+          <div>
+            <div style="font-size:0.78rem;font-weight:600;color:var(--text-strong);">Create the account</div>
+            <div style="font-size:0.76rem;color:var(--muted);margin-top:2px;">Account is live immediately in Keycloak.</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:10px;">
+          <span style="color:var(--muted);font-size:0.9rem;flex-shrink:0;margin-top:1px;">②</span>
+          <div>
+            <div style="font-size:0.78rem;font-weight:600;color:var(--muted);">Admin assigns roles</div>
+            <div style="font-size:0.76rem;color:var(--muted2);margin-top:2px;">Service access is set by your admin.</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:10px;">
+          <span style="color:var(--muted);font-size:0.9rem;flex-shrink:0;margin-top:1px;">③</span>
+          <div>
+            <div style="font-size:0.78rem;font-weight:600;color:var(--muted);">User gets credentials</div>
+            <div style="font-size:0.76rem;color:var(--muted2);margin-top:2px;">Share the password you set, or let them reset via SSO.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
 
-    <h3 style="font-size:0.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px;margin-top:22px;">Required</h3>
+    <h3 style="font-size:0.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px;">Required</h3>
     <ul style="list-style:none;display:flex;flex-direction:column;gap:3px;">
       <li style="padding-left:12px;position:relative;"><span style="position:absolute;left:0;color:var(--muted2);">—</span>Username — must be unique within the realm.</li>
     </ul>
 
-    <h3 style="font-size:0.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px;margin-top:22px;">Conventions</h3>
-    <p>Usernames are lowercase. <code style="font-family:monospace;font-size:0.77rem;color:var(--text);background:var(--surface2);padding:1px 5px;border-radius:3px;border:1px solid var(--border);">firstname.lastname</code> is the standard. The system does not enforce this.</p>
-    <p style="margin-top:8px;">If "Account enabled" is unchecked, the account exists but cannot authenticate. No notification is sent either way.</p>
+    <h3 style="font-size:0.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px;margin-top:22px;">Username format</h3>
+    <p>Lowercase <code style="font-family:monospace;font-size:0.77rem;color:var(--text);background:var(--surface2);padding:1px 5px;border-radius:3px;border:1px solid var(--border);">firstname.lastname</code>. Fill the name fields above and it auto-fills.</p>
 
+    {% if is_admin %}
     <h3 style="font-size:0.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px;margin-top:22px;">Realm</h3>
     <p>Determines which services this account can access. Most users belong to <code style="font-family:monospace;font-size:0.77rem;color:var(--text);background:var(--surface2);padding:1px 5px;border-radius:3px;border:1px solid var(--border);">smartech</code>.</p>
+    {% endif %}
   </div>
 </div>
 
-{% if is_admin %}
 <script>
-  (function() {
-    var btn = document.getElementById('toggle-pw');
-    var inp = document.getElementById('new_password');
-    var icon = document.getElementById('toggle-pw-icon');
-    var eyeOpen  = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
-    var eyeShut  = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>';
-    if (btn && inp && icon) btn.addEventListener('click', function() {
-      var show = inp.type === 'password';
-      inp.type = show ? 'text' : 'password';
-      icon.innerHTML = show ? eyeShut : eyeOpen;
+(function() {
+  // Eye toggle (all roles)
+  var btn = document.getElementById('toggle-pw');
+  var inp = document.getElementById('new_password');
+  var icon = document.getElementById('toggle-pw-icon');
+  var eyeOpen = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+  var eyeShut = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>';
+  if (btn && inp && icon) btn.addEventListener('click', function() {
+    var show = inp.type === 'password';
+    inp.type = show ? 'text' : 'password';
+    icon.innerHTML = show ? eyeShut : eyeOpen;
+  });
+
+  // Password generator
+  var genBtn = document.getElementById('gen-pw');
+  var toast  = document.getElementById('pw-copy-toast');
+  var strength = document.getElementById('pw-strength');
+  if (genBtn && inp) {
+    genBtn.addEventListener('click', function() {
+      var chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%';
+      var arr = new Uint8Array(16);
+      window.crypto.getRandomValues(arr);
+      var pw = Array.from(arr).map(function(b){ return chars[b % chars.length]; }).join('');
+      inp.value = pw;
+      inp.type = 'text';
+      icon.innerHTML = eyeShut;
+      if (strength) strength.textContent = '16 chars · mixed case · symbols';
+      // Copy to clipboard
+      navigator.clipboard.writeText(pw).then(function() {
+        if (toast) {
+          toast.style.opacity = '1';
+          setTimeout(function(){ toast.style.opacity = '0'; }, 1800);
+        }
+      }).catch(function(){});
     });
-  })();
+  }
+
+  // Strength indicator on manual input
+  if (inp && strength) {
+    inp.addEventListener('input', function() {
+      var v = inp.value;
+      if (!v) { strength.textContent = ''; return; }
+      var s = v.length >= 16 ? 'Strong' : v.length >= 10 ? 'Moderate' : 'Weak';
+      var c = v.length >= 16 ? 'var(--accent)' : v.length >= 10 ? 'var(--warning)' : 'var(--danger)';
+      strength.textContent = s + ' · ' + v.length + ' chars';
+      strength.style.color = c;
+    });
+  }
+})();
+
+// Username auto-generation from first + last name
+var usernameDirty = false;
+
+function toSlug(s) {
+  return s.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function autoUsername() {
+  if (usernameDirty) return;
+  var f = toSlug(document.getElementById('new_first_name').value);
+  var l = toSlug(document.getElementById('new_last_name').value);
+  var hint = document.getElementById('username-hint');
+  if (!f && !l) {
+    document.getElementById('new_username').value = '';
+    if (hint) { hint.textContent = 'Fill first & last name to auto-generate.'; hint.className = 'username-auto-hint'; }
+    return;
+  }
+  var slug = [f, l].filter(Boolean).join('.');
+  document.getElementById('new_username').value = slug;
+  if (hint) {
+    hint.textContent = slug ? 'Auto-generated — edit to override.' : 'Non-Latin names: type username manually.';
+    hint.className = 'username-auto-hint' + (slug ? ' active' : '');
+  }
+}
+
+function onUsernameInput() {
+  var v = document.getElementById('new_username').value;
+  var f = toSlug(document.getElementById('new_first_name').value);
+  var l = toSlug(document.getElementById('new_last_name').value);
+  var expected = [f, l].filter(Boolean).join('.');
+  usernameDirty = v !== '' && v !== expected;
+  var hint = document.getElementById('username-hint');
+  if (hint) {
+    hint.textContent = usernameDirty ? 'Manually edited.' : (expected ? 'Auto-generated — edit to override.' : 'Fill first & last name to auto-generate.');
+    hint.className = 'username-auto-hint' + (!usernameDirty && expected ? ' active' : '');
+  }
+}
+
+// Email auto-suggestion from username
+document.getElementById('new_username').addEventListener('blur', function() {
+  var emailEl = document.getElementById('new_email');
+  if (emailEl && !emailEl.value && this.value) {
+    emailEl.placeholder = this.value + '@smartech.ir';
+  }
+});
 </script>
+
+{% if is_admin %}
 <div id="create-team-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;align-items:center;justify-content:center;">
-  <div class="card" style="width:360px;margin:0;">
-    <h2>New team</h2>
+  <div class="card modal-inner" style="width:360px;margin:0;">
+    <h2 style="font-size:1rem;color:var(--text-strong);text-transform:none;letter-spacing:0;">New team</h2>
     <form method="post" action="/teams">
       <input type="hidden" name="csrf_token" value="{{ csrf }}">
       <input type="hidden" name="realm" value="{{ current_realm }}">

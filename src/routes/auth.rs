@@ -131,6 +131,12 @@ async fn callback(
         .await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?;
 
+    // Rotate session ID after authentication to prevent session fixation
+    session
+        .cycle_id()
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("session cycle error: {e}")))?;
+
     Ok(Redirect::to("/"))
 }
 

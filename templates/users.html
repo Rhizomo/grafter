@@ -17,8 +17,8 @@
   .table-meta-count { font-size: 0.75rem; color: var(--muted2); }
 
   /* Row nav arrow */
-  .row-nav { color: var(--muted2); font-size: 0.88rem; padding: 12px 14px 12px 2px; width: 24px; text-align: right; transition: color 0.12s; white-space: nowrap; }
-  tbody tr:hover .row-nav { color: var(--teal); }
+  .row-nav { color: var(--muted2); font-size: 0.88rem; padding: 12px 14px 12px 2px; width: 24px; text-align: right; white-space: nowrap; opacity: 0.4; transform: translateX(-3px); transition: color 0.12s, opacity 0.12s, transform 0.12s; }
+  tbody tr:hover .row-nav { color: var(--teal); opacity: 1; transform: translateX(0); }
   tbody tr[data-row] { cursor: pointer; }
 
   /* Bulk bar */

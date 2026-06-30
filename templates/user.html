@@ -38,6 +38,12 @@
   <!-- Edit form -->
   <div class="card">
     <h2>Account</h2>
+    {% if not is_admin %}
+    <div style="display:flex;align-items:center;gap:8px;padding:9px 13px;background:rgba(0,191,165,0.07);border:1px solid rgba(0,191,165,0.22);border-radius:var(--radius);margin-bottom:18px;font-size:0.78rem;color:var(--teal);">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="m17 4 4 4-4 4"/><path d="M3 8h18"/><path d="m7 20-4-4 4-4"/><path d="M21 16H3"/></svg>
+      Changes go to the admin queue for review before taking effect.
+    </div>
+    {% endif %}
     <form method="post" action="/users/{{ realm }}/{{ subject.id }}/edit">
       <input type="hidden" name="csrf_token" value="{{ csrf }}">
 
@@ -88,14 +94,14 @@
       </div>
       <div class="field" style="display:flex; align-items:center; gap:10px;">
         <input type="checkbox" name="enabled" id="enabled" {% if subject.enabled %}checked{% endif %}>
-        <label for="enabled" style="margin:0; color:var(--text);">Account enabled</label>
+        <label for="enabled" style="margin:0; color:var(--text); text-transform:none; letter-spacing:0; font-weight:400; font-size:0.875rem;">Account enabled</label>
       </div>
 
       {% if is_admin %}
         <button type="submit" class="btn btn-primary">Commit</button>
       {% else %}
-        <button type="submit" class="btn btn-ghost">Propose change</button>
-        <p style="margin-top:10px; font-size:0.79rem; color:var(--muted);">Queued for admin approval.</p>
+        <button type="submit" class="btn btn-teal">Propose change</button>
+        <p style="margin-top:10px; font-size:0.79rem; color:var(--muted);">Changes are queued for admin approval.</p>
       {% endif %}
     </form>
   </div>
@@ -200,7 +206,7 @@
     </div>
     <div class="field" style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
       <input type="checkbox" name="temporary" id="pw-temporary" checked>
-      <label for="pw-temporary" style="margin:0;color:var(--text);">Temporary — user must change on next login</label>
+      <label for="pw-temporary" style="margin:0; color:var(--text); text-transform:none; letter-spacing:0; font-weight:400; font-size:0.875rem;">Temporary — user must change on next login</label>
     </div>
     <button type="submit" class="btn btn-ghost">Set password</button>
   </form>
@@ -211,7 +217,7 @@
 {% if is_admin %}
 <div id="create-team-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;align-items:center;justify-content:center;">
   <div class="card" style="width:360px;margin:0;">
-    <h2>New team</h2>
+    <h2 style="font-size:1rem;color:var(--text-strong);text-transform:none;letter-spacing:0;">New team</h2>
     <form method="post" action="/teams">
       <input type="hidden" name="csrf_token" value="{{ csrf }}">
       <input type="hidden" name="realm" value="{{ realm }}">
