@@ -421,7 +421,13 @@ impl IdentityProvider for KeycloakProvider {
         body.insert("lastName".into(),  json!(update.last_name.or(cur.last_name).unwrap_or_default()));
         body.insert("email".into(),     json!(update.email.or(cur.email).unwrap_or_default()));
         body.insert("enabled".into(),   json!(update.enabled.unwrap_or(cur.enabled)));
-        let mut attrs = update.attributes.unwrap_or(cur.attributes);
+        // Merge rather than replace — a partial attributes map (e.g. just
+        // "team") must not wipe out other existing attributes like
+        // phone_number/personnel_code that weren't part of this update.
+        let mut attrs = cur.attributes;
+        if let Some(new_attrs) = update.attributes {
+            attrs.extend(new_attrs);
+        }
         if let Some(ref v) = update.phone_number {
             attrs.insert("phone_number".to_string(), vec![v.clone()]);
         }
@@ -561,6 +567,20 @@ impl IdentityProvider for KeycloakProvider {
     ) -> ProviderResult<Vec<Role>> {
         let url = format!(
             "{}/users/{}/role-mappings/realm",
+            self.admin_url(realm),
+            user_id
+        );
+        let roles: Vec<KcRole> = self.get(&url).await?;
+        Ok(roles.into_iter().map(kc_role_to_role).collect())
+    }
+
+    async fn get_user_effective_realm_roles(
+        &self,
+        realm: &str,
+        user_id: &str,
+    ) -> ProviderResult<Vec<Role>> {
+        let url = format!(
+            "{}/users/{}/role-mappings/realm/composite",
             self.admin_url(realm),
             user_id
         );

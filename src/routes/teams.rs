@@ -37,7 +37,7 @@ async fn create_team(
     session: Session,
     Form(form): Form<CreateTeamForm>,
 ) -> Result<impl IntoResponse, AppError> {
-    let current_user = require_admin(&session).await?;
+    let current_user = require_admin(&session, &state).await?;
 
     let session_csrf: String = session.get("csrf").await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?

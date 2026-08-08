@@ -77,7 +77,7 @@ async fn list_users(
     session: Session,
     Query(q): Query<ListQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let current_user = require_session(&session).await?;
+    let current_user = require_session(&session, &state).await?;
 
     let realms = state.provider.list_realms().await?;
     let realm = q
@@ -151,7 +151,7 @@ async fn bulk_edit(
     session: Session,
     Json(body): Json<BulkEditBody>,
 ) -> Result<impl IntoResponse, AppError> {
-    let current_user = require_admin(&session).await?;
+    let current_user = require_admin(&session, &state).await?;
 
     let session_csrf: String = session
         .get("csrf")
@@ -222,7 +222,7 @@ async fn user_detail(
     session: Session,
     Path((realm, id)): Path<(String, String)>,
 ) -> Result<impl IntoResponse, AppError> {
-    let current_user = require_session(&session).await?;
+    let current_user = require_session(&session, &state).await?;
     check_realm_access(&state, &current_user, &realm)?;
 
     let user = state.provider.get_user(&realm, &id).await?;
@@ -308,7 +308,7 @@ async fn edit_user(
     Path((realm, id)): Path<(String, String)>,
     Form(form): Form<EditForm>,
 ) -> Result<impl IntoResponse, AppError> {
-    let current_user = require_session(&session).await?;
+    let current_user = require_session(&session, &state).await?;
 
     let session_csrf: String = session
         .get("csrf")
@@ -416,7 +416,7 @@ async fn new_user_form(
     session: Session,
     Query(q): Query<ListQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let current_user = require_session(&session).await?;
+    let current_user = require_session(&session, &state).await?;
 
     let realms = state.provider.list_realms().await?;
     let realm = if current_user.role.is_admin() {
@@ -469,7 +469,7 @@ async fn create_user(
     session: Session,
     Form(form): Form<NewUserForm>,
 ) -> Result<impl IntoResponse, AppError> {
-    let current_user = require_session(&session).await?;
+    let current_user = require_session(&session, &state).await?;
 
     let session_csrf: String = session.get("csrf").await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?
@@ -548,7 +548,7 @@ async fn assign_role(
     Path((realm, user_id)): Path<(String, String)>,
     Form(form): Form<RoleAssignForm>,
 ) -> Result<impl IntoResponse, AppError> {
-    let current_user = require_admin(&session).await?;
+    let current_user = require_admin(&session, &state).await?;
 
     let session_csrf: String = session.get("csrf").await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?
@@ -590,7 +590,7 @@ async fn remove_role(
     Path((realm, user_id)): Path<(String, String)>,
     Form(form): Form<RoleRemoveForm>,
 ) -> Result<impl IntoResponse, AppError> {
-    let current_user = require_admin(&session).await?;
+    let current_user = require_admin(&session, &state).await?;
 
     let session_csrf: String = session.get("csrf").await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?
@@ -636,7 +636,7 @@ async fn set_user_password(
     Path((realm, id)): Path<(String, String)>,
     Form(form): Form<SetPasswordForm>,
 ) -> Result<impl IntoResponse, AppError> {
-    let current_user = require_admin(&session).await?;
+    let current_user = require_admin(&session, &state).await?;
 
     let session_csrf: String = session.get("csrf").await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?

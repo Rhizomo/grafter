@@ -13,7 +13,7 @@ use tower_sessions::Session;
 
 use crate::{
     error::AppError,
-    session::{SessionUser, SESSION_KEY},
+    session::{Role, SessionUser, SESSION_KEY},
     AppState,
 };
 
@@ -38,16 +38,46 @@ pub async fn pending_changes_count(state: &crate::AppState) -> usize {
         .unwrap_or(0)
 }
 
-pub async fn require_session(session: &Session) -> Result<SessionUser, AppError> {
-    session
+// Re-checks the session's role against Keycloak on every call, using the
+// same effective (group/composite-inclusive) role set the login token was
+// built from. This means a role revoked in Keycloak takes effect immediately
+// instead of only at the next login — the session cache is refreshed here,
+// not trusted.
+pub async fn require_session(session: &Session, state: &AppState) -> Result<SessionUser, AppError> {
+    let mut user = session
         .get::<SessionUser>(SESSION_KEY)
         .await
         .map_err(|_| AppError::Unauthenticated)?
-        .ok_or(AppError::Unauthenticated)
+        .ok_or(AppError::Unauthenticated)?;
+
+    let realm = state.config.oidc_issuer.rsplit('/').next().unwrap_or("smartech");
+    let roles = state
+        .provider
+        .get_user_effective_realm_roles(realm, &user.sub)
+        .await
+        .map_err(AppError::Provider)?;
+    let names: Vec<String> = roles.into_iter().map(|r| r.name).collect();
+
+    let Some(fresh_role) = Role::from_claims(&names, &state.config.role_admin, &state.config.role_operator) else {
+        // Role was revoked in Keycloak since login — end the session now
+        // rather than letting the cached role keep working until logout.
+        let _ = session.flush().await;
+        return Err(AppError::Forbidden);
+    };
+
+    if fresh_role != user.role {
+        user.role = fresh_role;
+        session
+            .insert(SESSION_KEY, &user)
+            .await
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?;
+    }
+
+    Ok(user)
 }
 
-pub async fn require_admin(session: &Session) -> Result<SessionUser, AppError> {
-    let user = require_session(session).await?;
+pub async fn require_admin(session: &Session, state: &AppState) -> Result<SessionUser, AppError> {
+    let user = require_session(session, state).await?;
     if !user.role.is_admin() {
         return Err(AppError::Forbidden);
     }

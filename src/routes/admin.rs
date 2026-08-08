@@ -46,7 +46,7 @@ async fn admin_panel(
     session: Session,
     Query(q): Query<AdminQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let current_user = require_admin(&session).await?;
+    let current_user = require_admin(&session, &state).await?;
 
     let realms = state.provider.list_realms().await?;
     let realm = q.realm.clone()
@@ -131,7 +131,7 @@ async fn grant_access(
     session: Session,
     Form(form): Form<GrantForm>,
 ) -> Result<impl IntoResponse, AppError> {
-    let current_user = require_admin(&session).await?;
+    let current_user = require_admin(&session, &state).await?;
 
     let session_csrf: String = session.get("csrf").await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?
@@ -189,7 +189,7 @@ async fn revoke_access(
     session: Session,
     Form(form): Form<RevokeForm>,
 ) -> Result<impl IntoResponse, AppError> {
-    let current_user = require_admin(&session).await?;
+    let current_user = require_admin(&session, &state).await?;
 
     let session_csrf: String = session.get("csrf").await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?

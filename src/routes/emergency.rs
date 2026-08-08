@@ -5,8 +5,10 @@ use axum::{
     Json, Router,
 };
 use chrono::Utc;
+use fred::interfaces::KeysInterface;
+use fred::types::Expiration;
 use serde::{Deserialize, Serialize};
-use std::{net::SocketAddr, time::Instant};
+use std::net::SocketAddr;
 use uuid::Uuid;
 
 use crate::{
@@ -49,33 +51,38 @@ pub async fn emergency_promote(
     Json(body): Json<Req>,
 ) -> (StatusCode, Json<Resp>) {
     let ip = addr.ip().to_string();
-    let ts = Utc::now().to_rfc3339();
 
     // Feature gate
     let Some(ref expected) = state.config.emergency_token else {
-        eprintln!("[{ts}] emergency/{ip}: rejected — feature disabled");
+        tracing::warn!(%ip, "emergency promote: rejected — feature disabled");
         return deny("disabled");
     };
 
-    // Rate limit: 3 attempts per IP per hour
-    {
-        let mut map = state.emergency_limiter.lock().unwrap();
-        let attempts = map.entry(ip.clone()).or_default();
-        attempts.retain(|t: &Instant| t.elapsed().as_secs() < 3600);
-        if attempts.len() >= 3 {
-            eprintln!("[{ts}] emergency/{ip}: rate limited");
-            return deny("rate limited");
+    // Rate limit: 3 attempts per IP per hour, tracked in Redis so it holds
+    // across replicas/restarts instead of a per-process in-memory map.
+    let rl_key = format!("grafter:emergency-rl:{ip}");
+    let attempts: i64 = match state.redis.incr(&rl_key).await {
+        Ok(n) => n,
+        Err(e) => {
+            tracing::error!(%ip, error = %e, "emergency promote: redis rate-limit error");
+            return err("rate limit check failed");
         }
-        attempts.push(Instant::now());
+    };
+    if attempts == 1 {
+        let _ = state.redis.expire::<i64, _>(&rl_key, 3600).await;
+    }
+    if attempts > 3 {
+        tracing::warn!(%ip, "emergency promote: rate limited");
+        return deny("rate limited");
     }
 
     // Verify token (constant-time to prevent timing attacks)
     if !csrf_tokens_equal(&body.token, expected) {
-        eprintln!("[{ts}] emergency/{ip}: invalid token for username='{}'", body.username);
+        tracing::warn!(%ip, username = %body.username, "emergency promote: invalid token");
         return deny("forbidden");
     }
 
-    eprintln!("[{ts}] emergency/{ip}: VALID — promoting '{}' to admin", body.username);
+    tracing::warn!(%ip, username = %body.username, "emergency promote: valid token — promoting to admin");
 
     let realm = state.config.oidc_issuer
         .split("/realms/").nth(1).unwrap_or("smartech").to_string();
@@ -84,14 +91,14 @@ pub async fn emergency_promote(
     let users = match state.provider.list_users(&realm, &ListUsersQuery::new().search(&body.username)).await {
         Ok(u) => u,
         Err(e) => {
-            eprintln!("[{ts}] emergency/{ip}: user lookup error: {e}");
+            tracing::error!(%ip, error = %e, "emergency promote: user lookup error");
             return err("user lookup failed");
         }
     };
     let target = match users.into_iter().find(|u| u.username == body.username) {
         Some(u) => u,
         None => {
-            eprintln!("[{ts}] emergency/{ip}: user '{}' not found", body.username);
+            tracing::warn!(%ip, username = %body.username, "emergency promote: user not found");
             return (StatusCode::NOT_FOUND, Json(Resp { ok: false, error: Some("user not found") }));
         }
     };
@@ -99,16 +106,16 @@ pub async fn emergency_promote(
     // Find admin role
     let roles = match state.provider.list_realm_roles(&realm).await {
         Ok(r) => r,
-        Err(e) => { eprintln!("[{ts}] emergency/{ip}: list roles error: {e}"); return err("role lookup failed"); }
+        Err(e) => { tracing::error!(%ip, error = %e, "emergency promote: list roles error"); return err("role lookup failed"); }
     };
     let admin_role = match roles.into_iter().find(|r| r.name == state.config.role_admin) {
         Some(r) => r,
-        None => { eprintln!("[{ts}] emergency/{ip}: admin role not found"); return err("admin role not found"); }
+        None => { tracing::error!(%ip, "emergency promote: admin role not found"); return err("admin role not found"); }
     };
 
     // Assign
     if let Err(e) = state.provider.assign_realm_role(&realm, &target.id, &admin_role).await {
-        eprintln!("[{ts}] emergency/{ip}: assign role error: {e}");
+        tracing::error!(%ip, error = %e, "emergency promote: assign role error");
         return err("role assignment failed");
     }
 
@@ -124,6 +131,6 @@ pub async fn emergency_promote(
         outcome: AuditOutcome::Success,
     }).await;
 
-    eprintln!("[{ts}] emergency/{ip}: '{}' promoted to admin successfully", body.username);
+    tracing::warn!(%ip, username = %body.username, "emergency promote: promoted to admin successfully");
     ok()
 }

@@ -188,6 +188,11 @@ pub trait IdentityProvider: Send + Sync + 'static {
     // Realm roles
     async fn list_realm_roles(&self, realm: &str) -> ProviderResult<Vec<Role>>;
     async fn get_user_realm_roles(&self, realm: &str, user_id: &str) -> ProviderResult<Vec<Role>>;
+    // Directly-assigned roles PLUS roles inherited via group membership or
+    // composite roles — matches what Keycloak puts in the access token's
+    // realm_access.roles claim. Used to re-verify a session's role on every
+    // request, so it must see the same roles the original login token did.
+    async fn get_user_effective_realm_roles(&self, realm: &str, user_id: &str) -> ProviderResult<Vec<Role>>;
     async fn list_role_users(&self, realm: &str, role_name: &str) -> ProviderResult<Vec<User>>;
     async fn assign_realm_role(
         &self,

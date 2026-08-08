@@ -269,3 +269,28 @@ pub fn csrf_tokens_equal(a: &str, b: &str) -> bool {
     }
     a.bytes().zip(b.bytes()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn equal_strings_match() {
+        assert!(csrf_tokens_equal("abc123", "abc123"));
+    }
+
+    #[test]
+    fn different_strings_do_not_match() {
+        assert!(!csrf_tokens_equal("abc123", "abc124"));
+    }
+
+    #[test]
+    fn different_lengths_do_not_match() {
+        assert!(!csrf_tokens_equal("short", "muchlonger"));
+    }
+
+    #[test]
+    fn empty_strings_match() {
+        assert!(csrf_tokens_equal("", ""));
+    }
+}

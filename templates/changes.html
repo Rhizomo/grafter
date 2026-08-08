@@ -62,7 +62,7 @@
         {% if is_admin %}<th>Proposed by</th>{% endif %}
         <th>When</th>
         <th>Status</th>
-        {% if is_admin %}<th>Actions</th>{% endif %}
+        <th>Actions</th>
       </tr>
     </thead>
     <tbody>
@@ -114,20 +114,25 @@
             {% endif %}
           {% endif %}
         </td>
-        {% if is_admin %}
         <td>
-          {% if c.status == "pending" %}
-          <div style="display:flex; gap:6px;">
-            <form method="post" action="/changes/{{ c.id }}/approve">
+          {% if is_admin %}
+            {% if c.status == "pending" %}
+            <div style="display:flex; gap:6px;">
+              <form method="post" action="/changes/{{ c.id }}/approve">
+                <input type="hidden" name="csrf_token" value="{{ csrf }}">
+                <button type="submit" class="btn btn-success btn-sm">Approve</button>
+              </form>
+              <button type="button" class="btn btn-danger btn-sm"
+                      onclick="openSingleReject('{{ c.id }}', '{{ c.username }}', '{{ c.proposed_by }}')">Reject</button>
+            </div>
+            {% endif %}
+          {% elif c.status == "pending" %}
+            <form method="post" action="/changes/{{ c.id }}/cancel" onsubmit="return confirm('Cancel this proposal?');">
               <input type="hidden" name="csrf_token" value="{{ csrf }}">
-              <button type="submit" class="btn btn-success btn-sm">Approve</button>
+              <button type="submit" class="btn btn-ghost btn-sm">Cancel</button>
             </form>
-            <button type="button" class="btn btn-danger btn-sm"
-                    onclick="openSingleReject('{{ c.id }}', '{{ c.username }}', '{{ c.proposed_by }}')">Reject</button>
-          </div>
           {% endif %}
         </td>
-        {% endif %}
       </tr>
       {% endfor %}
     </tbody>

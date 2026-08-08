@@ -56,3 +56,31 @@ impl Flash {
         Self { text: text.into(), kind: FlashKind::Warning }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn admin_role_wins_when_both_present() {
+        let roles = vec!["iam-operator".to_string(), "iam-admin".to_string()];
+        assert_eq!(Role::from_claims(&roles, "iam-admin", "iam-operator"), Some(Role::Admin));
+    }
+
+    #[test]
+    fn operator_role_alone() {
+        let roles = vec!["iam-operator".to_string()];
+        assert_eq!(Role::from_claims(&roles, "iam-admin", "iam-operator"), Some(Role::Operator));
+    }
+
+    #[test]
+    fn no_matching_role_is_none() {
+        let roles = vec!["some-other-role".to_string()];
+        assert_eq!(Role::from_claims(&roles, "iam-admin", "iam-operator"), None);
+    }
+
+    #[test]
+    fn empty_roles_is_none() {
+        assert_eq!(Role::from_claims(&[], "iam-admin", "iam-operator"), None);
+    }
+}

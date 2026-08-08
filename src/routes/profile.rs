@@ -21,7 +21,7 @@ async fn show_profile(
     State(state): State<AppState>,
     session: Session,
 ) -> Result<impl IntoResponse, AppError> {
-    let current_user = require_session(&session).await?;
+    let current_user = require_session(&session, &state).await?;
 
     // Derive realm from OIDC issuer: ".../realms/{realm}"
     let realm = state.config.oidc_issuer

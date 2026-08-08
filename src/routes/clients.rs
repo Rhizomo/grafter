@@ -37,7 +37,7 @@ async fn list_clients(
     session: Session,
     Query(q): Query<RealmQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let current_user = require_admin(&session).await?;
+    let current_user = require_admin(&session, &state).await?;
 
     let realms = state.provider.list_realms().await?;
     let realm = q
@@ -74,7 +74,7 @@ async fn client_detail(
     session: Session,
     Path((realm, id)): Path<(String, String)>,
 ) -> Result<impl IntoResponse, AppError> {
-    let current_user = require_admin(&session).await?;
+    let current_user = require_admin(&session, &state).await?;
 
     let client = state.provider.get_client(&realm, &id).await?;
 
@@ -120,7 +120,7 @@ async fn edit_client(
     Path((realm, id)): Path<(String, String)>,
     Form(form): Form<EditClientForm>,
 ) -> Result<impl IntoResponse, AppError> {
-    require_admin(&session).await?;
+    require_admin(&session, &state).await?;
 
     let session_csrf: String = session
         .get("csrf")
@@ -165,7 +165,7 @@ async fn reveal_secret(
     session: Session,
     Path((realm, id)): Path<(String, String)>,
 ) -> Result<impl IntoResponse, AppError> {
-    let current_user = require_admin(&session).await?;
+    let current_user = require_admin(&session, &state).await?;
     let client = state.provider.get_client(&realm, &id).await?;
     let secret = state.provider.get_client_secret(&realm, &id).await?;
 

@@ -28,7 +28,7 @@ pub async fn list_audit(
     session: Session,
     Query(q): Query<AuditQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let current_user = require_admin(&session).await?;
+    let current_user = require_admin(&session, &state).await?;
 
     let today = Utc::now().format("%Y-%m-%d").to_string();
     let selected_date = q.date.unwrap_or(today);
