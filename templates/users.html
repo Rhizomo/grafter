@@ -222,8 +222,11 @@ function onCheck() {
 }
 
 function updateBulkBar() {
-  const checked = document.querySelectorAll('.row-cb:checked').length;
+  // bulk-bar/bulk-count are admin-only elements (operators never render them).
   const bar = document.getElementById('bulk-bar');
+  if (!bar) return;
+
+  const checked = document.querySelectorAll('.row-cb:checked').length;
   const wasVisible = bar.style.display === 'flex';
 
   document.getElementById('bulk-count').textContent = `${checked} selected`;
@@ -281,7 +284,11 @@ async function bulkSetEnabled(enabled) {
   else alert('Failed: ' + await res.text());
 }
 
-document.getElementById('bulk-team-btn').addEventListener('click', async function() {
+// #bulk-team-btn only exists in the DOM for admins (bulk-bar is admin-only) —
+// guard it so operators, who never get this element, don't hit a null
+// dereference here that would silently kill every script statement after it.
+const bulkTeamBtn = document.getElementById('bulk-team-btn');
+if (bulkTeamBtn) bulkTeamBtn.addEventListener('click', async function() {
   const users = selectedUsers();
   const team_group_id = document.getElementById('bulk-team-select').value;
   if (!users.length || !team_group_id) return;
