@@ -130,32 +130,55 @@
 
     .sidebar-foot {
       flex-shrink: 0;
-      padding: 14px 16px 16px;
+      padding: 10px;
       border-top: 1px solid var(--border);
     }
-    .sidebar-username { font-size: 0.82rem; font-weight: 600; color: var(--text-strong); margin-bottom: 8px; }
+
+    .account-card {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px; border-radius: var(--radius);
+      transition: background 0.13s;
+    }
+    .account-card:hover { background: var(--surface2); }
+
+    .account-avatar {
+      flex-shrink: 0;
+      width: 30px; height: 30px; border-radius: 50%;
+      background: var(--teal-glow); color: var(--teal);
+      border: 1px solid var(--border2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.78rem; font-weight: 700;
+      text-decoration: none;
+    }
+    .account-avatar:hover { color: var(--teal); }
+
+    .account-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+
+    .sidebar-username {
+      font-size: 0.82rem; font-weight: 600; color: var(--text-strong);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      text-decoration: none; transition: color 0.13s;
+    }
+    .sidebar-username:hover { color: var(--teal); }
 
     .role-badge {
-      font-size: 0.62rem; font-weight: 700; letter-spacing: 0.8px;
-      text-transform: uppercase; padding: 2px 9px;
-      border-radius: 99px; border: 1px solid; display: inline-block;
-      margin-bottom: 10px;
+      font-size: 0.6rem; font-weight: 700; letter-spacing: 0.8px;
+      text-transform: uppercase; padding: 1px 8px;
+      border-radius: 99px; border: 1px solid;
+      align-self: flex-start;
     }
     .role-badge.admin    { color: var(--accent); border-color: rgba(0,230,118,0.4); background: var(--accent-glow); }
     .role-badge.operator { color: var(--warning); border-color: rgba(255,183,77,0.4); background: rgba(255,183,77,0.08); }
 
-    .sidebar-profile-link {
-      text-decoration: none; display: block;
-      transition: color 0.13s;
+    .signout-btn {
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      width: 28px; height: 28px; border-radius: var(--radius);
+      background: none; border: none; color: var(--muted); cursor: pointer;
+      font-family: inherit;
+      transition: color 0.13s, background 0.13s;
     }
-    .sidebar-profile-link:hover { color: var(--teal); }
-
-    .sidebar-signout {
-      font-size: 0.76rem; color: var(--muted);
-      text-decoration: none; display: inline-block;
-      transition: color 0.13s;
-    }
-    .sidebar-signout:hover { color: var(--danger); }
+    .signout-btn:hover { color: var(--danger); background: var(--danger-glow); }
 
     /* ── Main ────────────────────────────────────────────────────────── */
     main {
@@ -524,16 +547,26 @@
   <!-- User foot -->
   {% if user %}
   <div class="sidebar-foot">
-    <a href="/profile" class="sidebar-username sidebar-profile-link">{{ user.username }}</a>
-    {% if user.role == "admin" %}
-      <span class="role-badge admin">admin</span>
-    {% else %}
-      <span class="role-badge operator">operator</span>
-    {% endif %}
-    <br>
-    <form method="post" action="/auth/logout" style="display:inline;">
-      <button type="submit" class="sidebar-signout" style="background:none;border:none;cursor:pointer;font-family:inherit;padding:0;">Sign out →</button>
-    </form>
+    <div class="account-card">
+      <a href="/profile" class="account-avatar" title="{{ user.username }}">{{ user.username | truncate(length=1, end="") | upper }}</a>
+      <div class="account-info">
+        <a href="/profile" class="sidebar-username">{{ user.username }}</a>
+        {% if user.role == "admin" %}
+          <span class="role-badge admin">admin</span>
+        {% else %}
+          <span class="role-badge operator">operator</span>
+        {% endif %}
+      </div>
+      <form method="post" action="/auth/logout">
+        <button type="submit" class="signout-btn" title="Sign out" aria-label="Sign out">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+        </button>
+      </form>
+    </div>
   </div>
   {% endif %}
 </aside>
