@@ -546,7 +546,7 @@
     <div class="account-card">
       <a href="/profile" class="account-avatar" title="{{ user.username }}">{{ user.username | truncate(length=1, end="") | upper }}</a>
       <div class="account-info">
-        <a href="/profile" class="sidebar-username">{{ user.username }}</a>
+        <a href="/profile" class="sidebar-username" title="{{ user.username }}">{{ user.username | split(pat="@") | first }}</a>
         {% if user.role == "admin" %}
           <span class="account-role admin">admin</span>
         {% else %}
