@@ -15,7 +15,7 @@ use crate::{
     auth::{new_csrf_token, csrf_tokens_equal},
     error::AppError,
     routes::{pending_changes_count, require_admin, require_session},
-    session::{Flash, FLASH_KEY},
+    session::{Flash, FLASH_KEY, SESSION_KEY},
     storage::{AuditEntry, AuditOutcome, ChangeStatus},
     AppState,
 };
@@ -37,7 +37,7 @@ async fn list_changes(
     State(state): State<AppState>,
     session: Session,
 ) -> Result<impl IntoResponse, AppError> {
-    let current_user = require_session(&session, &state).await?;
+    let mut current_user = require_session(&session, &state).await?;
 
     let mut changes = state
         .storage
@@ -48,6 +48,31 @@ async fn list_changes(
     if !current_user.role.is_admin() {
         changes.retain(|c| c.proposed_by == current_user.username);
     }
+
+    // Admins resolve changes themselves, so they don't need telling. For an
+    // operator, count how many of their own proposals were resolved since
+    // their last visit — computed before truncation so the count reflects
+    // everything, not just what's rendered. A missing last_seen (first visit
+    // with this feature) intentionally counts as zero, not "all history."
+    let unseen_resolved_count = if current_user.role.is_admin() {
+        0
+    } else {
+        current_user.last_seen_changes_at
+            .map(|last_seen| {
+                changes.iter()
+                    .filter(|c| c.status != ChangeStatus::Pending)
+                    .filter(|c| c.resolved_at.map(|t| t > last_seen).unwrap_or(false))
+                    .count()
+            })
+            .unwrap_or(0)
+    };
+
+    if !current_user.role.is_admin() {
+        current_user.last_seen_changes_at = Some(Utc::now());
+        session.insert(SESSION_KEY, &current_user).await
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?;
+    }
+
     changes.truncate(CHANGES_PAGE_LIMIT);
 
     let csrf = new_csrf_token();
@@ -68,6 +93,7 @@ async fn list_changes(
     ctx.insert("active_tab", "changes");
     ctx.insert("changes", &changes);
     ctx.insert("pending_count", &pending_count);
+    ctx.insert("unseen_resolved_count", &unseen_resolved_count);
     ctx.insert("csrf", &csrf);
     ctx.insert("flash", &flash);
 

@@ -46,6 +46,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(index))
         .route("/users", get(list_users))
+        .route("/users/check-similar", get(check_similar))
         .route("/users/bulk-edit", post(bulk_edit))
         .route("/users/new", get(new_user_form).post(create_user))
         .route("/users/:realm/:id", get(user_detail))
@@ -130,6 +131,49 @@ async fn list_users(
     Ok(Html(html))
 }
 
+// ── Duplicate-person check ──────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct SimilarQuery {
+    realm: String,
+    q: String,
+}
+
+#[derive(Serialize)]
+struct SimilarUser {
+    id: String,
+    realm: String,
+    username: String,
+    full_name: String,
+}
+
+// Warns whoever is creating a user if a similarly-named account already
+// exists — a real recurring mistake here (two "maryam.f*" accounts got
+// mixed up for real), not a hypothetical. Both roles get this: it's a
+// safety net, not a privilege, so there's no reason to restrict it to admins.
+async fn check_similar(
+    State(state): State<AppState>,
+    session: Session,
+    Query(q): Query<SimilarQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    let current_user = require_session(&session, &state).await?;
+    check_realm_access(&state, &current_user, &q.realm)?;
+
+    if q.q.trim().chars().count() < 2 {
+        return Ok(Json(Vec::<SimilarUser>::new()));
+    }
+
+    let users = state.provider.list_users(&q.realm, &ListUsersQuery::new().search(q.q.trim())).await?;
+    let matches: Vec<SimilarUser> = users.into_iter().take(5).map(|u| SimilarUser {
+        id: u.id.clone(),
+        realm: q.realm.clone(),
+        username: u.username.clone(),
+        full_name: u.full_name(),
+    }).collect();
+
+    Ok(Json(matches))
+}
+
 // ── Bulk edit ─────────────────────────────────────────────────────────────────
 
 #[derive(Deserialize)]
@@ -151,7 +195,7 @@ async fn bulk_edit(
     session: Session,
     Json(body): Json<BulkEditBody>,
 ) -> Result<impl IntoResponse, AppError> {
-    let current_user = require_admin(&session, &state).await?;
+    let current_user = require_session(&session, &state).await?;
 
     let session_csrf: String = session
         .get("csrf")
@@ -161,6 +205,10 @@ async fn bulk_edit(
 
     if !csrf_tokens_equal(&body.csrf_token, &session_csrf) {
         return Err(AppError::CsrfMismatch);
+    }
+
+    for u in &body.users {
+        check_realm_access(&state, &current_user, &u.realm)?;
     }
 
     // Resolve team group once (all users assumed to be in same realm)
@@ -177,40 +225,81 @@ async fn bulk_edit(
         _ => None,
     };
 
-    for u in &body.users {
-        if let Some(enabled) = body.enabled {
-            state.provider.set_user_enabled(&u.realm, &u.id, enabled).await?;
+    if current_user.role.is_admin() {
+        for u in &body.users {
+            if let Some(enabled) = body.enabled {
+                state.provider.set_user_enabled(&u.realm, &u.id, enabled).await?;
+            }
+            if let Some((ref gid, ref name)) = team_assignment {
+                // Remove from any existing team group first
+                let user_groups = state.provider.get_user_groups(&u.realm, &u.id).await?;
+                for ug in &user_groups {
+                    if all_groups.iter().any(|g| g.id == ug.id) && ug.id != *gid {
+                        state.provider.remove_user_from_group(&u.realm, &u.id, &ug.id).await?;
+                    }
+                }
+                state.provider.add_user_to_group(&u.realm, &u.id, gid).await?;
+                state.provider.set_user_attribute(&u.realm, &u.id, "team", name).await?;
+            }
         }
-        if let Some((ref gid, ref name)) = team_assignment {
-            // Remove from any existing team group first
-            let user_groups = state.provider.get_user_groups(&u.realm, &u.id).await?;
-            for ug in &user_groups {
-                if all_groups.iter().any(|g| g.id == ug.id) && ug.id != *gid {
-                    state.provider.remove_user_from_group(&u.realm, &u.id, &ug.id).await?;
+
+        state
+            .storage
+            .append_audit(&AuditEntry {
+                id: Uuid::new_v4().to_string(),
+                timestamp: Utc::now(),
+                actor: current_user.username.clone(),
+                action: "bulk_edit".into(),
+                target_realm: realm.to_string(),
+                target_user: None,
+                detail: format!(
+                    "{} users affected — enabled={:?} team={:?}",
+                    body.users.len(), body.enabled, body.team_group_id
+                ),
+                outcome: AuditOutcome::Success,
+            })
+            .await
+            .map_err(AppError::Internal)?;
+    } else {
+        // Operators can't change access directly — each user's change is
+        // queued for admin approval, same granularity as a single edit.
+        for u in &body.users {
+            let existing = state.provider.get_user(&u.realm, &u.id).await?;
+            let mut diff = Vec::new();
+
+            if let Some(enabled) = body.enabled {
+                if enabled != existing.enabled {
+                    diff.push(FieldChange {
+                        field: "enabled".into(),
+                        before: Some(existing.enabled.to_string()),
+                        after: enabled.to_string(),
+                    });
                 }
             }
-            state.provider.add_user_to_group(&u.realm, &u.id, gid).await?;
-            state.provider.set_user_attribute(&u.realm, &u.id, "team", name).await?;
+            if let Some((ref gid, ref name)) = team_assignment {
+                diff.push(FieldChange { field: "team_group_id".into(), before: None, after: gid.clone() });
+                diff.push(FieldChange { field: "team".into(), before: None, after: name.clone() });
+            }
+
+            if diff.is_empty() {
+                continue;
+            }
+
+            crate::service::users::propose_or_apply(
+                &current_user.role,
+                &*state.provider,
+                &*state.storage,
+                crate::service::users::EditRequest {
+                    realm: &u.realm,
+                    user_id: &u.id,
+                    username: &existing.username,
+                    actor: &current_user.username,
+                    diff,
+                },
+            )
+            .await?;
         }
     }
-
-    state
-        .storage
-        .append_audit(&AuditEntry {
-            id: Uuid::new_v4().to_string(),
-            timestamp: Utc::now(),
-            actor: current_user.username.clone(),
-            action: "bulk_edit".into(),
-            target_realm: realm.to_string(),
-            target_user: None,
-            detail: format!(
-                "{} users affected — enabled={:?} team={:?}",
-                body.users.len(), body.enabled, body.team_group_id
-            ),
-            outcome: AuditOutcome::Success,
-        })
-        .await
-        .map_err(AppError::Internal)?;
 
     Ok(axum::http::StatusCode::OK)
 }
@@ -297,6 +386,7 @@ struct EditForm {
     last_name: Option<String>,
     email: Option<String>,
     enabled: Option<String>,
+    status_reason: Option<String>,
     team_group_id: Option<String>,
     phone_number: Option<String>,
     personnel_code: Option<String>,
@@ -344,11 +434,41 @@ async fn edit_user(
     let enabled_val = form.enabled.as_deref() == Some("on");
     if enabled_val != existing.enabled {
         diff.push(FieldChange { field: "enabled".into(), before: Some(existing.enabled.to_string()), after: enabled_val.to_string() });
+        // Only meaningful alongside a status change — captures *why*, since
+        // "disabled" alone tells a future reader nothing (leave? terminated?
+        // mistake?).
+        if let Some(reason) = form.status_reason.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+            diff.push(FieldChange { field: "status_reason".into(), before: None, after: reason.to_string() });
+        }
     }
 
-    // Team group assignment is admin-only and applied immediately (outside the diff/proposal flow).
-    // We resolve it here and apply after the other fields.
+    // Team assignment — same diff/proposal flow as every other field now
+    // (used to be admin-only and applied outside the diff, which silently
+    // dropped an operator's team choice and, if it was the *only* change,
+    // also silently dropped an admin's).
+    let user_groups = state.provider.get_user_groups(&realm, &id).await?;
+    let team_groups = load_team_groups(&state, &realm).await?;
+    let old_team_group_id = user_groups.iter()
+        .find(|g| team_groups.iter().any(|tg| tg.id == g.id))
+        .map(|g| g.id.clone());
     let new_team_group_id = form.team_group_id.as_deref().filter(|s| !s.is_empty());
+
+    if new_team_group_id != old_team_group_id.as_deref() {
+        let team_name = new_team_group_id
+            .and_then(|gid| team_groups.iter().find(|g| g.id == gid))
+            .map(|g| g.name.clone())
+            .unwrap_or_default();
+        diff.push(FieldChange {
+            field: "team_group_id".into(),
+            before: old_team_group_id.clone(),
+            after: new_team_group_id.unwrap_or("").to_string(),
+        });
+        diff.push(FieldChange {
+            field: "team".into(),
+            before: None,
+            after: team_name,
+        });
+    }
 
     let current_phone = existing.attributes.get("phone_number").and_then(|v| v.first()).cloned();
     let new_phone = form.phone_number.as_deref().unwrap_or("");
@@ -379,29 +499,6 @@ async fn edit_user(
         },
     )
     .await?;
-
-    // Apply team group change (admin-only, immediate)
-    if current_user.role.is_admin() {
-        let user_groups = state.provider.get_user_groups(&realm, &id).await?;
-        let team_groups = load_team_groups(&state, &realm).await?;
-        let old_team_group = user_groups.iter().find(|g| team_groups.iter().any(|tg| tg.id == g.id));
-        let old_id = old_team_group.map(|g| g.id.as_str());
-
-        if new_team_group_id != old_id {
-            if let Some(old) = old_id {
-                state.provider.remove_user_from_group(&realm, &id, old).await?;
-            }
-            if let Some(new_gid) = new_team_group_id {
-                state.provider.add_user_to_group(&realm, &id, new_gid).await?;
-                // Sync team attribute for fast list display
-                let team_name = team_groups.iter().find(|g| g.id == new_gid).map(|g| g.name.as_str()).unwrap_or("");
-                state.provider.set_user_attribute(&realm, &id, "team", team_name).await?;
-            } else {
-                // Cleared — remove attribute
-                state.provider.set_user_attribute(&realm, &id, "team", "").await?;
-            }
-        }
-    }
 
     session.insert(FLASH_KEY, flash).await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?;

@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -29,6 +30,11 @@ pub struct SessionUser {
     pub username: String,
     pub email: Option<String>,
     pub role: Role,
+    // When this operator last viewed /changes — used to show "resolved
+    // since you last checked". Missing on already-active sessions from
+    // before this field existed, hence the default.
+    #[serde(default)]
+    pub last_seen_changes_at: Option<DateTime<Utc>>,
 }
 
 pub const SESSION_KEY: &str = "user";

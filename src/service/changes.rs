@@ -21,6 +21,7 @@ fn diff_to_update(diff: &[FieldChange]) -> UpdateUser {
             "team"           => { attrs.insert("team".into(), vec![field.after.clone()]); }
             "phone_number"   => { attrs.insert("phone_number".into(), vec![field.after.clone()]); }
             "personnel_code" => { attrs.insert("personnel_code".into(), vec![field.after.clone()]); }
+            "status_reason"  => { attrs.insert("status_reason".into(), vec![field.after.clone()]); }
             _ => {}
         }
     }
@@ -58,8 +59,18 @@ pub async fn apply_change_diff(
     // Group membership is a separate Keycloak API, not part of the user
     // representation PUT — diff_to_update deliberately ignores this field,
     // so it's applied here as its own step once a proposal is approved.
+    // Team assignment is exclusive: leaving every current group before
+    // joining the new one (or joining none, if "after" is empty — a clear).
     if let Some(field) = diff.iter().find(|f| f.field == "team_group_id") {
-        provider.add_user_to_group(realm, user_id, &field.after).await?;
+        let current_groups = provider.get_user_groups(realm, user_id).await?;
+        for g in &current_groups {
+            if g.id != field.after {
+                provider.remove_user_from_group(realm, user_id, &g.id).await?;
+            }
+        }
+        if !field.after.is_empty() {
+            provider.add_user_to_group(realm, user_id, &field.after).await?;
+        }
     }
 
     Ok(())
@@ -103,6 +114,13 @@ mod tests {
         assert_eq!(attrs.get("team"), Some(&vec!["platform".to_string()]));
         assert_eq!(attrs.get("phone_number"), Some(&vec!["0912".to_string()]));
         assert_eq!(attrs.get("personnel_code"), Some(&vec!["1234".to_string()]));
+    }
+
+    #[test]
+    fn status_reason_is_stored_as_an_attribute() {
+        let update = diff_to_update(&[field("status_reason", None, "Resigned 2026-08-09")]);
+        let attrs = update.attributes.expect("attributes should be set");
+        assert_eq!(attrs.get("status_reason"), Some(&vec!["Resigned 2026-08-09".to_string()]));
     }
 
     #[test]

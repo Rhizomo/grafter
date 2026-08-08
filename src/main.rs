@@ -26,6 +26,28 @@ use config::Config;
 use provider::{keycloak::KeycloakProvider, IdentityProvider};
 use storage::{s3::S3Storage, ChangeStorage};
 
+// Field names on a PendingChange diff are internal keys ("first_name",
+// "team_group_id") — the Changes page shows these to HR/admins, so they
+// need a plain-English label instead of a code identifier.
+fn humanize_field_filter(
+    value: &tera::Value,
+    _args: &std::collections::HashMap<String, tera::Value>,
+) -> tera::Result<tera::Value> {
+    let field = value.as_str().unwrap_or_default();
+    let label = match field {
+        "first_name" => "First name",
+        "last_name" => "Last name",
+        "email" => "Email",
+        "enabled" => "Account enabled",
+        "team" | "team_group_id" => "Team",
+        "phone_number" => "Phone number",
+        "personnel_code" => "Personnel code",
+        "status_reason" => "Reason",
+        other => return Ok(tera::Value::String(other.to_string())),
+    };
+    Ok(tera::Value::String(label.to_string()))
+}
+
 #[derive(Clone)]
 pub struct AppState {
     pub config: Arc<Config>,
@@ -64,7 +86,9 @@ async fn main() -> Result<()> {
         &config.s3_secret_key,
     )?);
 
-    let tera = Arc::new(Tera::new("templates/**/*.html")?);
+    let mut tera_inner = Tera::new("templates/**/*.html")?;
+    tera_inner.register_filter("humanize_field", humanize_field_filter);
+    let tera = Arc::new(tera_inner);
 
     let jwks = Arc::new(JwksCache::new(http.clone(), &config.oidc_issuer));
 

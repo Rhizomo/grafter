@@ -19,12 +19,18 @@
       {% endif %}
     </div>
   </div>
-  <div style="display:flex; gap:8px; align-items:center;">
-    <span class="dot {% if subject.enabled %}dot-on{% else %}dot-off{% endif %}"></span>
-    {% if subject.enabled %}
-      <span style="color:var(--accent); font-size:0.84rem; font-weight:500;">active</span>
-    {% else %}
-      <span style="color:var(--muted); font-size:0.84rem;">disabled</span>
+  <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
+    <div style="display:flex; gap:8px; align-items:center;">
+      <span class="dot {% if subject.enabled %}dot-on{% else %}dot-off{% endif %}"></span>
+      {% if subject.enabled %}
+        <span style="color:var(--accent); font-size:0.84rem; font-weight:500;">active</span>
+      {% else %}
+        <span style="color:var(--muted); font-size:0.84rem;">disabled</span>
+      {% endif %}
+    </div>
+    {% set status_reason = subject.attributes.status_reason | default(value=[]) | first | default(value='') %}
+    {% if not subject.enabled and status_reason %}
+      <span style="color:var(--muted2); font-size:0.74rem;">{{ status_reason }}</span>
     {% endif %}
   </div>
 </div>
@@ -76,7 +82,7 @@
             {% endif %}
           </div>
           <select id="edit_team" name="team_group_id" style="width:100%;">
-            <option value="">— none —</option>
+            <option value="">No team</option>
             {% for g in team_groups %}
               <option value="{{ g.id }}" {% if g.id == current_team_group_id %}selected{% endif %}>{{ g.name }}</option>
             {% endfor %}
@@ -101,8 +107,14 @@
           </div>
         </div>
         <div class="field" style="display:flex; align-items:center; gap:10px;">
-          <input type="checkbox" name="enabled" id="enabled" {% if subject.enabled %}checked{% endif %}>
+          <input type="checkbox" name="enabled" id="enabled" onchange="toggleStatusReason()" {% if subject.enabled %}checked{% endif %}>
           <label for="enabled" style="margin:0; color:var(--text); text-transform:none; letter-spacing:0; font-weight:400; font-size:0.875rem;">Account enabled</label>
+        </div>
+        <div class="field" id="status-reason-field" style="display:none;">
+          <label for="status_reason">Reason <span style="color:var(--muted2); font-weight:400; text-transform:none; letter-spacing:0;">(optional, shown on their profile)</span></label>
+          <input type="text" id="status_reason" name="status_reason" autocomplete="off"
+                 value="{{ subject.attributes.status_reason | default(value=[]) | first | default(value='') }}"
+                 placeholder="e.g. resigned, on leave, offboarded" style="width:100%;">
         </div>
 
         {% if is_admin %}
@@ -112,6 +124,13 @@
           <p style="margin-top:10px; font-size:0.79rem; color:var(--muted);">Changes are queued for admin approval.</p>
         {% endif %}
       </form>
+      <script>
+        function toggleStatusReason() {
+          var enabled = document.getElementById('enabled').checked;
+          document.getElementById('status-reason-field').style.display = enabled ? 'none' : '';
+        }
+        toggleStatusReason();
+      </script>
     </div>
 
     <!-- Password (admin only) -->

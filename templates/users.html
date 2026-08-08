@@ -76,22 +76,27 @@
   </div>
 </div>
 
-<!-- Bulk action bar (hidden until rows checked) -->
-{% if is_admin %}
+<!-- Bulk action bar (hidden until rows checked). Available to operators too —
+     their bulk actions are queued for admin approval instead of applying
+     immediately (see bulkSetEnabled / #bulk-team-btn below). -->
 <div id="bulk-bar" style="display:none; align-items:center; gap:10px; padding:10px 16px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); margin-bottom:14px; flex-wrap:wrap;">
   <span id="bulk-count" style="font-size:0.82rem; font-weight:600; color:var(--text); min-width:90px;"></span>
+  {% if is_admin %}
   <button class="btn btn-success btn-sm" onclick="bulkSetEnabled(true)">Enable</button>
   <button class="btn btn-danger btn-sm" onclick="bulkSetEnabled(false)">Disable</button>
+  {% else %}
+  <button class="btn btn-success btn-sm" onclick="bulkSetEnabled(true)">Propose enable</button>
+  <button class="btn btn-danger btn-sm" onclick="bulkSetEnabled(false)">Propose disable</button>
+  {% endif %}
   <div style="display:flex; gap:6px; align-items:center; border-left:1px solid var(--border); padding-left:10px;">
     <select id="bulk-team-select" style="padding:5px 10px; font-size:0.82rem; width:160px;">
       <option value="">— set team —</option>
       {% for g in team_groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
     </select>
-    <button class="btn btn-teal btn-sm" id="bulk-team-btn">Set team</button>
+    <button class="btn btn-teal btn-sm" id="bulk-team-btn">{% if is_admin %}Set team{% else %}Propose team{% endif %}</button>
   </div>
   <button class="btn btn-ghost btn-sm" style="margin-left:auto;" onclick="clearSelection()">Cancel</button>
 </div>
-{% endif %}
 
 <!-- Table -->
 <div class="table-meta">
@@ -102,12 +107,12 @@
   <table id="tbl">
     <thead>
       <tr>
-        {% if is_admin %}<th style="width:38px; padding:11px 12px;"><input type="checkbox" id="select-all" onchange="toggleAll(this)"></th>{% endif %}
-        <th class="sortable sorted" data-col="{% if is_admin %}1{% else %}0{% endif %}" data-dir="asc">Username<span class="sort-ind">▲</span></th>
-        <th class="sortable" data-col="{% if is_admin %}2{% else %}1{% endif %}">Name<span class="sort-ind">▲</span></th>
+        <th style="width:38px; padding:11px 12px;"><input type="checkbox" id="select-all" onchange="toggleAll(this)"></th>
+        <th class="sortable sorted" data-col="1" data-dir="asc">Username<span class="sort-ind">▲</span></th>
+        <th class="sortable" data-col="2">Name<span class="sort-ind">▲</span></th>
         <th class="col-realm" {% if realms | length <= 1 %}style="display:none;"{% endif %}>Realm</th>
-        <th class="sortable" data-col="{% if is_admin %}4{% else %}3{% endif %}">Status<span class="sort-ind">▲</span></th>
-        <th class="sortable" data-col="{% if is_admin %}5{% else %}4{% endif %}">Team<span class="sort-ind">▲</span></th>
+        <th class="sortable" data-col="4">Status<span class="sort-ind">▲</span></th>
+        <th class="sortable" data-col="5">Team<span class="sort-ind">▲</span></th>
         <th style="width:24px;"></th>
       </tr>
     </thead>
@@ -121,11 +126,9 @@
           data-name="{{ u.first_name | default(value='') | lower }} {{ u.last_name | default(value='') | lower }}"
           data-status="{% if u.enabled %}active{% else %}disabled{% endif %}"
           data-team="{{ team | lower }}">
-        {% if is_admin %}
         <td style="padding:12px;">
           <input type="checkbox" class="row-cb" data-id="{{ u.id }}" data-realm="{{ u.realm }}" onchange="onCheck()">
         </td>
-        {% endif %}
         <td>
           <a href="/users/{{ u.realm }}/{{ u.id }}" class="link-primary">{{ u.username }}</a>
         </td>
@@ -140,7 +143,7 @@
           </span>
         </td>
         <td style="color:var(--teal); font-size:0.84rem;">
-          {% if team %}{{ team }}{% else %}<span style="color:var(--muted2);">—</span>{% endif %}
+          {% if team %}{{ team }}{% else %}<span style="color:var(--muted2);">No team</span>{% endif %}
         </td>
         <td class="row-nav">›</td>
       </tr>
@@ -161,6 +164,7 @@
 
 <script>
 const CSRF = document.getElementById('csrf-token').value;
+const IS_ADMIN = {{ is_admin }};
 
 function filterTable() {
   const search = document.getElementById('search').value.toLowerCase();
@@ -280,13 +284,14 @@ async function bulkSetEnabled(enabled) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ csrf_token: CSRF, users, enabled })
   });
-  if (res.ok) location.reload();
-  else alert('Failed: ' + await res.text());
+  if (res.ok) {
+    if (!IS_ADMIN) alert(`Proposed for ${users.length} user(s). Sent for admin approval.`);
+    location.reload();
+  } else alert('Failed: ' + await res.text());
 }
 
-// #bulk-team-btn only exists in the DOM for admins (bulk-bar is admin-only) —
-// guard it so operators, who never get this element, don't hit a null
-// dereference here that would silently kill every script statement after it.
+// bulk-team-btn is always in the DOM now (operators can propose a bulk team
+// change too), but keep the guard cheap in case markup ever changes again.
 const bulkTeamBtn = document.getElementById('bulk-team-btn');
 if (bulkTeamBtn) bulkTeamBtn.addEventListener('click', async function() {
   const users = selectedUsers();
@@ -297,8 +302,10 @@ if (bulkTeamBtn) bulkTeamBtn.addEventListener('click', async function() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ csrf_token: CSRF, users, team_group_id })
   });
-  if (res.ok) location.reload();
-  else alert('Failed: ' + await res.text());
+  if (res.ok) {
+    if (!IS_ADMIN) alert(`Proposed for ${users.length} user(s). Sent for admin approval.`);
+    location.reload();
+  } else alert('Failed: ' + await res.text());
 });
 
 // Row click → user detail (ignore clicks on checkboxes)

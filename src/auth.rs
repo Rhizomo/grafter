@@ -252,6 +252,7 @@ pub async fn session_user_from_token(
         username,
         email,
         role,
+        last_seen_changes_at: None,
     })
 }
 

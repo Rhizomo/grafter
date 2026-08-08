@@ -86,6 +86,11 @@
         <p id="username-hint" class="username-auto-hint">Fill first &amp; last name to auto-generate.</p>
       </div>
 
+      <div id="duplicate-warning" style="display:none;align-items:flex-start;gap:8px;padding:10px 14px;background:rgba(255,183,77,0.08);border:1px solid rgba(255,183,77,0.3);border-radius:var(--radius);margin-bottom:20px;font-size:0.8rem;color:var(--warning);line-height:1.5;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" style="flex-shrink:0;margin-top:2px;" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span id="duplicate-warning-text"></span>
+      </div>
+
       <div class="form-section-label">Contact</div>
 
       <div class="field">
@@ -114,7 +119,7 @@
           {% endif %}
         </div>
         <select id="new_team" name="team_group_id" style="width:100%;">
-          <option value="">— none —</option>
+          <option value="">No team</option>
           {% for g in team_groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
         </select>
       </div>
@@ -298,6 +303,53 @@ document.getElementById('new_username').addEventListener('blur', function() {
     emailEl.placeholder = this.value + '@smartech.ir';
   }
 });
+
+// Duplicate-person warning — a similarly-named account has caused real
+// confusion here before, so check as the name is typed rather than only
+// after Keycloak rejects a truly duplicate username.
+(function() {
+  var firstEl = document.getElementById('new_first_name');
+  var lastEl  = document.getElementById('new_last_name');
+  var warnBox = document.getElementById('duplicate-warning');
+  var warnText = document.getElementById('duplicate-warning-text');
+  var timer = null;
+
+  function currentRealm() {
+    var el = document.querySelector('[name="realm"]');
+    return el ? el.value : '';
+  }
+
+  function renderMatches(matches) {
+    if (!matches.length) { warnBox.style.display = 'none'; return; }
+    var links = matches.map(function(m) {
+      var label = (m.full_name || m.username) + ' (' + m.username + ')';
+      return '<a href="/users/' + encodeURIComponent(m.realm) + '/' + encodeURIComponent(m.id) +
+        '" target="_blank" style="color:inherit;text-decoration:underline;">' + label + '</a>';
+    });
+    warnText.innerHTML = (matches.length > 1 ? 'Similar accounts already exist: ' : 'A similar account already exists: ') +
+      links.join(', ') + '. Make sure this isn\'t a duplicate before continuing.';
+    warnBox.style.display = 'flex';
+  }
+
+  function checkSimilar() {
+    var q = (firstEl.value + ' ' + lastEl.value).trim();
+    if (q.length < 3) { warnBox.style.display = 'none'; return; }
+    var realm = currentRealm();
+    if (!realm) return;
+    fetch('/users/check-similar?realm=' + encodeURIComponent(realm) + '&q=' + encodeURIComponent(q))
+      .then(function(r) { return r.ok ? r.json() : []; })
+      .then(renderMatches)
+      .catch(function() {});
+  }
+
+  function debounced() {
+    clearTimeout(timer);
+    timer = setTimeout(checkSimilar, 400);
+  }
+
+  if (firstEl) firstEl.addEventListener('input', debounced);
+  if (lastEl)  lastEl.addEventListener('input', debounced);
+})();
 </script>
 
 {% if is_admin %}

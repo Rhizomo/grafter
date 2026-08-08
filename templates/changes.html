@@ -15,6 +15,12 @@
   </div>
 </div>
 
+{% if unseen_resolved_count and unseen_resolved_count > 0 %}
+<div class="flash flash-info">
+  {{ unseen_resolved_count }} proposal(s) resolved since your last visit.
+</div>
+{% endif %}
+
 <!-- Status tabs -->
 <div class="tab-bar" style="margin-bottom:16px;">
   <button class="tab" data-filter="pending" id="tab-pending">Pending</button>
@@ -90,7 +96,7 @@
           {% for f in c.diff %}
             {% if f.field != "team_group_id" and f.field != "password" %}
             <div style="font-size:0.8rem; margin-bottom:3px; display:flex; align-items:center; gap:5px; flex-wrap:wrap;">
-              <code>{{ f.field }}</code>
+              <span style="color:var(--muted); font-weight:600; font-size:0.76rem;">{{ f.field | humanize_field }}</span>
               {% if f.before %}
                 <span style="color:var(--muted2);">{{ f.before }}</span>
                 <span style="color:var(--muted);">→</span>
