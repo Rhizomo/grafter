@@ -489,49 +489,78 @@ async fn create_user(
         _ => None,
     };
 
-    // Both admins and operators create users directly in KC.
-    // Operators cannot assign roles — that lives in the Admin panel only.
-    {
-        let mut attrs = std::collections::HashMap::new();
+    // Both admins and operators create the account directly in KC — a new,
+    // disabled-by-default account is low risk. Team assignment is different:
+    // it grants access, so an operator's choice of team goes to the approval
+    // queue instead of applying immediately; an admin's applies right away.
+    let apply_team_immediately = current_user.role.is_admin();
+
+    let mut attrs = std::collections::HashMap::new();
+    if apply_team_immediately {
         if let Some((_, ref name)) = team_group {
             attrs.insert("team".to_string(), vec![name.clone()]);
         }
-
-        let password = form.password.filter(|p| !p.is_empty());
-        let password_temporary = form.password_temporary.as_deref() == Some("on");
-
-        let new_user = CreateUser {
-            username: form.username.clone(),
-            email: form.email.filter(|e| !e.is_empty()),
-            first_name: form.first_name.filter(|f| !f.is_empty()),
-            last_name: form.last_name.filter(|l| !l.is_empty()),
-            enabled: form.enabled.as_deref() == Some("on"),
-            password,
-            password_temporary,
-            phone_number: form.phone_number.filter(|v| !v.is_empty()),
-            personnel_code: form.personnel_code.filter(|v| !v.is_empty()),
-            attributes: attrs,
-        };
-
-        let created = state.provider.create_user(&form.realm, new_user).await?;
-
-        if let Some((ref gid, _)) = team_group {
-            state.provider.add_user_to_group(&form.realm, &created.id, gid).await?;
-        }
-
-        state.storage.append_audit(&AuditEntry {
-            id: Uuid::new_v4().to_string(), timestamp: Utc::now(),
-            actor: current_user.username.clone(), action: "create_user".into(),
-            target_realm: form.realm.clone(), target_user: Some(form.username.clone()),
-            detail: "user created".into(),
-            outcome: AuditOutcome::Success,
-        }).await.map_err(AppError::Internal)?;
-
-        session.insert(FLASH_KEY, Flash::success(format!("User {} created.", form.username))).await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?;
-
-        Ok(Redirect::to(&format!("/users/{}/{}", form.realm, created.id)))
     }
+
+    let password = form.password.filter(|p| !p.is_empty());
+    let password_temporary = form.password_temporary.as_deref() == Some("on");
+
+    let new_user = CreateUser {
+        username: form.username.clone(),
+        email: form.email.filter(|e| !e.is_empty()),
+        first_name: form.first_name.filter(|f| !f.is_empty()),
+        last_name: form.last_name.filter(|l| !l.is_empty()),
+        enabled: form.enabled.as_deref() == Some("on"),
+        password,
+        password_temporary,
+        phone_number: form.phone_number.filter(|v| !v.is_empty()),
+        personnel_code: form.personnel_code.filter(|v| !v.is_empty()),
+        attributes: attrs,
+    };
+
+    let created = state.provider.create_user(&form.realm, new_user).await?;
+
+    state.storage.append_audit(&AuditEntry {
+        id: Uuid::new_v4().to_string(), timestamp: Utc::now(),
+        actor: current_user.username.clone(), action: "create_user".into(),
+        target_realm: form.realm.clone(), target_user: Some(form.username.clone()),
+        detail: "user created".into(),
+        outcome: AuditOutcome::Success,
+    }).await.map_err(AppError::Internal)?;
+
+    let mut flash = Flash::success(format!("User {} created.", form.username));
+
+    if let Some((ref gid, ref name)) = team_group {
+        if apply_team_immediately {
+            state.provider.add_user_to_group(&form.realm, &created.id, gid).await?;
+        } else {
+            crate::service::users::propose_or_apply(
+                &current_user.role,
+                &*state.provider,
+                &*state.storage,
+                crate::service::users::EditRequest {
+                    realm: &form.realm,
+                    user_id: &created.id,
+                    username: &created.username,
+                    actor: &current_user.username,
+                    diff: vec![
+                        FieldChange { field: "team_group_id".into(), before: None, after: gid.clone() },
+                        FieldChange { field: "team".into(), before: None, after: name.clone() },
+                    ],
+                },
+            )
+            .await?;
+            flash = Flash::success(format!(
+                "User {} created. Team assignment sent for admin approval.",
+                form.username
+            ));
+        }
+    }
+
+    session.insert(FLASH_KEY, flash).await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?;
+
+    Ok(Redirect::to(&format!("/users/{}/{}", form.realm, created.id)))
 }
 
 // ── Role assign / remove ──────────────────────────────────────────────────────

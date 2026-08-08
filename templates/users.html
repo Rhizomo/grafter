@@ -36,6 +36,7 @@
 
 <!-- Filter bar -->
 <div class="filter-bar">
+  {% if realms | length > 1 %}
   <div class="filter-group fg-realm">
     <label>Realm</label>
     <select id="f-realm" onchange="filterTable()">
@@ -47,6 +48,7 @@
       {% endfor %}
     </select>
   </div>
+  {% endif %}
   <div class="filter-group fg-search">
     <label>Search</label>
     <input type="search" id="search" placeholder="username or name…" oninput="filterTable()">
@@ -103,7 +105,7 @@
         {% if is_admin %}<th style="width:38px; padding:11px 12px;"><input type="checkbox" id="select-all" onchange="toggleAll(this)"></th>{% endif %}
         <th class="sortable sorted" data-col="{% if is_admin %}1{% else %}0{% endif %}" data-dir="asc">Username<span class="sort-ind">▲</span></th>
         <th class="sortable" data-col="{% if is_admin %}2{% else %}1{% endif %}">Name<span class="sort-ind">▲</span></th>
-        <th class="col-realm">Realm</th>
+        <th class="col-realm" {% if realms | length <= 1 %}style="display:none;"{% endif %}>Realm</th>
         <th class="sortable" data-col="{% if is_admin %}4{% else %}3{% endif %}">Status<span class="sort-ind">▲</span></th>
         <th class="sortable" data-col="{% if is_admin %}5{% else %}4{% endif %}">Team<span class="sort-ind">▲</span></th>
         <th style="width:24px;"></th>
@@ -130,7 +132,7 @@
         <td style="color:var(--text);">
           {{ u.first_name | default(value='') }} {{ u.last_name | default(value='') }}
         </td>
-        <td class="col-realm" style="color:var(--muted); font-size:0.8rem;">{{ u.realm }}</td>
+        <td class="col-realm" style="color:var(--muted); font-size:0.8rem; {% if realms | length <= 1 %}display:none;{% endif %}">{{ u.realm }}</td>
         <td>
           <span class="dot {% if u.enabled %}dot-on{% else %}dot-off{% endif %}"></span>
           <span style="{% if not u.enabled %}color:var(--muted);{% endif %}">
@@ -162,14 +164,18 @@ const CSRF = document.getElementById('csrf-token').value;
 
 function filterTable() {
   const search = document.getElementById('search').value.toLowerCase();
-  const realm  = document.getElementById('f-realm').value;
+  const realm  = document.getElementById('f-realm')?.value || '';
   const status = document.getElementById('f-status').value;
   const team   = document.getElementById('f-team').value.toLowerCase();
 
-  // Show/hide realm column — redundant when filtering by one realm
-  document.querySelectorAll('.col-realm').forEach(el => {
-    el.style.display = realm ? 'none' : '';
-  });
+  // Show/hide realm column — redundant when filtering down to one realm.
+  // No-op when there's only ever one realm (no f-realm filter rendered) —
+  // the column already stays server-side hidden in that case.
+  if (document.getElementById('f-realm')) {
+    document.querySelectorAll('.col-realm').forEach(el => {
+      el.style.display = realm ? 'none' : '';
+    });
+  }
 
   let visible = 0;
   document.querySelectorAll('tr[data-row]').forEach(row => {
@@ -195,7 +201,7 @@ function filterTable() {
 function clearFilters() {
   ['search','f-realm','f-status','f-team'].forEach(id => {
     const el = document.getElementById(id);
-    el.value = el.tagName === 'INPUT' ? '' : '';
+    if (el) el.value = '';
   });
   filterTable();
 }

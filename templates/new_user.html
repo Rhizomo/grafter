@@ -51,7 +51,7 @@
     <form method="post" action="/users/new">
       <input type="hidden" name="csrf_token" value="{{ csrf }}">
 
-      {% if is_admin %}
+      {% if is_admin and realms | length > 1 %}
       <div class="field">
         <label for="new_realm">Realm</label>
         <select id="new_realm" name="realm" autocomplete="off" style="width:100%;">

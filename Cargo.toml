@@ -7,7 +7,7 @@ description = "Employee lifecycle automation — define once, cascade everywhere
 [dependencies]
 axum = { version = "0.7", features = ["macros"] }
 tokio = { version = "1", features = ["full"] }
-tower-http = { version = "0.5", features = ["fs", "trace"] }
+tower-http = { version = "0.5", features = ["fs", "trace", "set-header"] }
 tower-sessions = "0.12"
 tower-sessions-redis-store = "0.12"
 fred = "8"

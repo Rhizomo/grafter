@@ -55,6 +55,13 @@ pub async fn apply_change_diff(
         provider.update_user(realm, user_id, update).await?;
     }
 
+    // Group membership is a separate Keycloak API, not part of the user
+    // representation PUT — diff_to_update deliberately ignores this field,
+    // so it's applied here as its own step once a proposal is approved.
+    if let Some(field) = diff.iter().find(|f| f.field == "team_group_id") {
+        provider.add_user_to_group(realm, user_id, &field.after).await?;
+    }
+
     Ok(())
 }
 
@@ -99,8 +106,16 @@ mod tests {
     }
 
     #[test]
-    fn ignores_unknown_fields() {
+    fn team_group_id_is_not_part_of_update_user() {
+        // Handled separately in apply_change_diff via add_user_to_group,
+        // not through the UpdateUser PUT.
         let update = diff_to_update(&[field("team_group_id", None, "abc")]);
+        assert!(!has_any_change(&update));
+    }
+
+    #[test]
+    fn ignores_unknown_fields() {
+        let update = diff_to_update(&[field("some_future_field", None, "abc")]);
         assert!(!has_any_change(&update));
     }
 

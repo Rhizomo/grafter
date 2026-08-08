@@ -8,11 +8,14 @@ mod session;
 mod storage;
 
 use anyhow::Result;
-use axum::Router;
+use axum::{
+    http::{header, HeaderValue},
+    Router,
+};
 use reqwest::Client;
 use std::{net::SocketAddr, sync::Arc};
 use tera::Tera;
-use tower_http::services::ServeDir;
+use tower_http::{services::ServeDir, set_header::SetResponseHeaderLayer};
 use tower_sessions::{cookie::SameSite, SessionManagerLayer};
 use fred::clients::RedisPool;
 use tower_sessions_redis_store::{fred::prelude::*, RedisStore};
@@ -90,9 +93,17 @@ async fn main() -> Result<()> {
         .with_http_only(true)
         .with_same_site(SameSite::Lax);
 
+    // Every dynamic page is session/role-specific — never let a browser or
+    // intermediary proxy cache and replay one across a role change or
+    // between users. Static assets under /static are unaffected.
+    let dynamic = routes::router(state).layer(SetResponseHeaderLayer::overriding(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("no-store"),
+    ));
+
     let app = Router::new()
         .nest_service("/static", ServeDir::new("static"))
-        .merge(routes::router(state))
+        .merge(dynamic)
         .layer(session_layer);
 
     let addr = format!("{}:{}", config.host, config.port);
