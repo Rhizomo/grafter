@@ -6,7 +6,6 @@ use axum::{
 };
 use chrono::Utc;
 use fred::interfaces::KeysInterface;
-use fred::types::Expiration;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use uuid::Uuid;
