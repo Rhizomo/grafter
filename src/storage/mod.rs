@@ -67,6 +67,7 @@ pub trait ChangeStorage: Send + Sync + 'static {
     async fn save_change(&self, change: &PendingChange) -> Result<()>;
     async fn get_change(&self, id: &str) -> Result<Option<PendingChange>>;
     async fn list_changes(&self) -> Result<Vec<PendingChange>>;
+    async fn list_pending_changes(&self) -> Result<Vec<PendingChange>>;
     async fn delete_change(&self, id: &str) -> Result<()>;
 
     async fn append_audit(&self, entry: &AuditEntry) -> Result<()>;

@@ -36,8 +36,12 @@ impl S3Storage {
         })
     }
 
-    fn change_path(&self, id: &str) -> Path {
-        Path::from(format!("{}/changes/{}.json", self.prefix, id))
+    fn pending_change_path(&self, id: &str) -> Path {
+        Path::from(format!("{}/changes/pending/{}.json", self.prefix, id))
+    }
+
+    fn resolved_change_path(&self, id: &str) -> Path {
+        Path::from(format!("{}/changes/resolved/{}.json", self.prefix, id))
     }
 
     // Each audit entry is its own object — no read-modify-write race.
@@ -54,15 +58,34 @@ impl S3Storage {
 impl ChangeStorage for S3Storage {
     async fn save_change(&self, change: &PendingChange) -> Result<()> {
         let data = serde_json::to_vec(change)?;
+        let path = match change.status {
+            super::ChangeStatus::Pending => self.pending_change_path(&change.id),
+            _ => self.resolved_change_path(&change.id),
+        };
         self.store
-            .put(&self.change_path(&change.id), Bytes::from(data).into())
+            .put(&path, Bytes::from(data).into())
             .await
             .context("s3 put change")?;
+
+        // If this change just left the pending state, remove its old pending
+        // object so it isn't scanned twice and doesn't linger in the small
+        // pending set that pending_changes_count() relies on staying small.
+        if !matches!(change.status, super::ChangeStatus::Pending) {
+            let _ = self.store.delete(&self.pending_change_path(&change.id)).await;
+        }
         Ok(())
     }
 
     async fn get_change(&self, id: &str) -> Result<Option<PendingChange>> {
-        match self.store.get(&self.change_path(id)).await {
+        match self.store.get(&self.pending_change_path(id)).await {
+            Ok(obj) => {
+                let bytes = obj.bytes().await?;
+                return Ok(Some(serde_json::from_slice(&bytes)?));
+            }
+            Err(object_store::Error::NotFound { .. }) => {}
+            Err(e) => return Err(e.into()),
+        }
+        match self.store.get(&self.resolved_change_path(id)).await {
             Ok(obj) => {
                 let bytes = obj.bytes().await?;
                 Ok(Some(serde_json::from_slice(&bytes)?))
@@ -91,11 +114,34 @@ impl ChangeStorage for S3Storage {
         Ok(changes)
     }
 
+    // Scans only the pending/ prefix, which stays small — used on every page
+    // render for the pending-count badge, so it must not scan resolved history.
+    async fn list_pending_changes(&self) -> Result<Vec<PendingChange>> {
+        let prefix = Path::from(format!("{}/changes/pending/", self.prefix));
+        let mut list = self.store.list(Some(&prefix));
+        let mut changes = Vec::new();
+
+        while let Some(meta) = list.next().await {
+            let meta = meta?;
+            let obj = self.store.get(&meta.location).await?;
+            let bytes = obj.bytes().await?;
+            match serde_json::from_slice::<PendingChange>(&bytes) {
+                Ok(c) => changes.push(c),
+                Err(e) => tracing::warn!(key = %meta.location, error = %e, "skipping corrupt change object"),
+            }
+        }
+
+        changes.sort_by_key(|c| Reverse(c.proposed_at));
+        Ok(changes)
+    }
+
     async fn delete_change(&self, id: &str) -> Result<()> {
-        self.store
-            .delete(&self.change_path(id))
-            .await
-            .context("s3 delete change")?;
+        for path in [self.pending_change_path(id), self.resolved_change_path(id)] {
+            match self.store.delete(&path).await {
+                Ok(()) | Err(object_store::Error::NotFound { .. }) => {}
+                Err(e) => return Err(e).context("s3 delete change"),
+            }
+        }
         Ok(())
     }
 

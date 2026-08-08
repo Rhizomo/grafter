@@ -128,65 +128,14 @@ async fn approve(
         return Ok(Redirect::to("/changes"));
     }
 
-    // Where to redirect after approval
-    let redirect_to: String;
-
-    if change.action == "create_user" {
-        // Extract fields from diff
-        let get = |field: &str| -> Option<String> {
-            change.diff.iter().find(|f| f.field == field).map(|f| f.after.clone())
-        };
-        let username      = get("username").unwrap_or_default();
-        let email         = get("email");
-        let first_name    = get("first_name");
-        let last_name     = get("last_name");
-        let team_group_id  = get("team_group_id");
-        let team_name      = get("team");
-        let phone_number   = get("phone_number");
-        let personnel_code = get("personnel_code");
-        let enabled        = get("enabled").as_deref() != Some("false");
-        let password       = get("password");
-        let password_temporary = get("password_temporary").as_deref() != Some("false");
-
-        let mut attrs = std::collections::HashMap::new();
-        if let Some(ref name) = team_name {
-            attrs.insert("team".to_string(), vec![name.clone()]);
-        }
-        if let Some(ref v) = phone_number    { attrs.insert("phone_number".to_string(),   vec![v.clone()]); }
-        if let Some(ref v) = personnel_code  { attrs.insert("personnel_code".to_string(), vec![v.clone()]); }
-
-        let new_user = crate::provider::CreateUser {
-            username: username.clone(),
-            email,
-            first_name,
-            last_name,
-            enabled,
-            password,
-            password_temporary,
-            phone_number: None,
-            personnel_code: None,
-            attributes: attrs,
-        };
-
-        let created = state.provider.create_user(&change.realm, new_user).await?;
-
-        if let Some(ref gid) = team_group_id {
-            state.provider.add_user_to_group(&change.realm, &created.id, gid).await?;
-        }
-
-        // Update the stored change with the new user_id so the link works
-        change.user_id = created.id.clone();
-        redirect_to = format!("/users/{}/{}", change.realm, created.id);
-    } else {
-        crate::service::changes::apply_change_diff(
-            &*state.provider,
-            &change.realm,
-            &change.user_id,
-            &change.diff,
-        )
-        .await?;
-        redirect_to = "/changes".into();
-    }
+    crate::service::changes::apply_change_diff(
+        &*state.provider,
+        &change.realm,
+        &change.user_id,
+        &change.diff,
+    )
+    .await?;
+    let redirect_to = "/changes".to_string();
 
     change.status = ChangeStatus::Approved;
     change.resolved_by = Some(current_user.username.clone());

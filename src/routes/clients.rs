@@ -4,8 +4,10 @@ use axum::{
     routing::{get, post},
     Form, Router,
 };
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use tower_sessions::Session;
+use uuid::Uuid;
 
 use crate::{
     auth::{csrf_tokens_equal, new_csrf_token},
@@ -13,6 +15,7 @@ use crate::{
     provider::UpdateAppClient,
     routes::require_admin,
     session::{Flash, FLASH_KEY},
+    storage::{AuditEntry, AuditOutcome},
     AppState,
 };
 
@@ -162,7 +165,17 @@ async fn reveal_secret(
     session: Session,
     Path((realm, id)): Path<(String, String)>,
 ) -> Result<impl IntoResponse, AppError> {
-    require_admin(&session).await?;
+    let current_user = require_admin(&session).await?;
+    let client = state.provider.get_client(&realm, &id).await?;
     let secret = state.provider.get_client_secret(&realm, &id).await?;
+
+    state.storage.append_audit(&AuditEntry {
+        id: Uuid::new_v4().to_string(), timestamp: Utc::now(),
+        actor: current_user.username.clone(), action: "reveal_client_secret".into(),
+        target_realm: realm.clone(), target_user: None,
+        detail: format!("revealed secret for client '{}'", client.client_id),
+        outcome: AuditOutcome::Success,
+    }).await.map_err(AppError::Internal)?;
+
     Ok(Json(SecretResponse { secret }))
 }

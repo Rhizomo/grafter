@@ -33,8 +33,8 @@ pub fn router(state: AppState) -> Router {
 }
 
 pub async fn pending_changes_count(state: &crate::AppState) -> usize {
-    state.storage.list_changes().await.ok()
-        .map(|cs| cs.iter().filter(|c| c.status == crate::storage::ChangeStatus::Pending).count())
+    state.storage.list_pending_changes().await.ok()
+        .map(|cs| cs.len())
         .unwrap_or(0)
 }
 

@@ -15,7 +15,7 @@ use crate::{
     provider::{CreateUser, Group, ListUsersQuery},
     routes::{pending_changes_count, require_admin, require_session},
     session::{Flash, FLASH_KEY},
-    storage::{AuditEntry, AuditOutcome, ChangeStatus, FieldChange},
+    storage::{AuditEntry, AuditOutcome, FieldChange},
     AppState,
 };
 
@@ -165,10 +165,14 @@ async fn bulk_edit(
 
     // Resolve team group once (all users assumed to be in same realm)
     let realm = body.users.first().map(|u| u.realm.as_str()).unwrap_or("");
+    let all_groups = if body.team_group_id.as_deref().is_some_and(|g| !g.is_empty()) {
+        state.provider.list_groups(realm).await?
+    } else {
+        Vec::new()
+    };
     let team_assignment: Option<(String, String)> = match &body.team_group_id {
         Some(gid) if !gid.is_empty() => {
-            let groups = state.provider.list_groups(realm).await?;
-            groups.into_iter().find(|g| g.id == *gid).map(|g| (g.id, g.name))
+            all_groups.iter().find(|g| g.id == *gid).map(|g| (g.id.clone(), g.name.clone()))
         }
         _ => None,
     };
@@ -179,7 +183,6 @@ async fn bulk_edit(
         }
         if let Some((ref gid, ref name)) = team_assignment {
             // Remove from any existing team group first
-            let all_groups = state.provider.list_groups(&u.realm).await?;
             let user_groups = state.provider.get_user_groups(&u.realm, &u.id).await?;
             for ug in &user_groups {
                 if all_groups.iter().any(|g| g.id == ug.id) && ug.id != *gid {
@@ -236,11 +239,11 @@ async fn user_detail(
 
     let pending = state
         .storage
-        .list_changes()
+        .list_pending_changes()
         .await
         .map_err(AppError::Internal)?
         .into_iter()
-        .filter(|c| c.user_id == id && c.status == ChangeStatus::Pending)
+        .filter(|c| c.user_id == id)
         .collect::<Vec<_>>();
 
     let csrf = new_csrf_token();
@@ -348,19 +351,15 @@ async fn edit_user(
     let new_team_group_id = form.team_group_id.as_deref().filter(|s| !s.is_empty());
 
     let current_phone = existing.attributes.get("phone_number").and_then(|v| v.first()).cloned();
-    let new_phone = form.phone_number.as_ref().filter(|s| !s.is_empty());
-    if new_phone.map(|s| s.as_str()) != current_phone.as_deref() {
-        if let Some(v) = new_phone {
-            diff.push(FieldChange { field: "phone_number".into(), before: current_phone, after: v.clone() });
-        }
+    let new_phone = form.phone_number.as_deref().unwrap_or("");
+    if new_phone != current_phone.as_deref().unwrap_or("") {
+        diff.push(FieldChange { field: "phone_number".into(), before: current_phone, after: new_phone.to_string() });
     }
 
     let current_personnel = existing.attributes.get("personnel_code").and_then(|v| v.first()).cloned();
-    let new_personnel = form.personnel_code.as_ref().filter(|s| !s.is_empty());
-    if new_personnel.map(|s| s.as_str()) != current_personnel.as_deref() {
-        if let Some(v) = new_personnel {
-            diff.push(FieldChange { field: "personnel_code".into(), before: current_personnel, after: v.clone() });
-        }
+    let new_personnel = form.personnel_code.as_deref().unwrap_or("");
+    if new_personnel != current_personnel.as_deref().unwrap_or("") {
+        diff.push(FieldChange { field: "personnel_code".into(), before: current_personnel, after: new_personnel.to_string() });
     }
 
     if diff.is_empty() {
