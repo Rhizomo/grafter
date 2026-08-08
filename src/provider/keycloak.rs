@@ -12,6 +12,40 @@ use super::{
 };
 use crate::error::ProviderError;
 
+// Keycloak's user-profile validation errors come back as machine codes like
+// "error-user-attribute-required" with a separate "field" name — surfacing
+// those raw to an HR operator is meaningless, so translate the common ones.
+fn humanize_field(field: &str) -> String {
+    match field {
+        "firstName" => "First name".into(),
+        "lastName" => "Last name".into(),
+        "phone_number" => "Phone number".into(),
+        "personnel_code" => "Personnel code".into(),
+        other => {
+            let mut chars = other.chars();
+            match chars.next() {
+                Some(c) => c.to_uppercase().collect::<String>() + chars.as_str(),
+                None => "This field".into(),
+            }
+        }
+    }
+}
+
+fn humanize_kc_code(code: &str, field: Option<&str>) -> String {
+    let subject = field.map(humanize_field).unwrap_or_else(|| "This field".to_string());
+    match code {
+        "error-user-attribute-required" => format!("{subject} is required."),
+        "error-invalid-email" => format!("{subject} must be a valid email address."),
+        "error-invalid-length" | "error-invalid-length-too-short" => format!("{subject} is too short."),
+        "error-invalid-length-too-long" => format!("{subject} is too long."),
+        "error-username-invalid-character"
+        | "error-person-name-invalid-character"
+        | "error-username-prohibited-character"
+        | "error-invalid-value" => format!("{subject} contains characters that aren't allowed."),
+        other => format!("{subject}: {other}"),
+    }
+}
+
 fn parse_kc_error(status: u16, body: String) -> ProviderError {
     if status == 409 {
         let msg = serde_json::from_str::<serde_json::Value>(&body)
@@ -22,11 +56,11 @@ fn parse_kc_error(status: u16, body: String) -> ProviderError {
     }
     if status == 400 {
         if let Ok(v) = serde_json::from_str::<serde_json::Value>(&body) {
-            let msg = v["errorMessage"].as_str().map(String::from)
-                .or_else(|| v["error_description"].as_str().map(String::from));
+            let field = v["field"].as_str();
+            let msg = v["errorMessage"].as_str()
+                .or_else(|| v["error_description"].as_str());
             if let Some(m) = msg {
-                let field = v["field"].as_str().map(|f| format!("Field \"{f}\": "));
-                return ProviderError::Validation(format!("{}{m}", field.unwrap_or_default()));
+                return ProviderError::Validation(humanize_kc_code(m, field));
             }
         }
     }
@@ -664,6 +698,44 @@ impl IdentityProvider for KeycloakProvider {
             Ok(s)                        => Ok(s.value),
             Err(ProviderError::NotFound) => Ok(None),
             Err(e)                       => Err(e),
+        }
+    }
+}
+
+#[cfg(test)]
+mod error_message_tests {
+    use super::*;
+
+    #[test]
+    fn required_field_error_is_readable() {
+        let msg = humanize_kc_code("error-user-attribute-required", Some("email"));
+        assert_eq!(msg, "Email is required.");
+    }
+
+    #[test]
+    fn camel_case_field_gets_a_readable_label() {
+        let msg = humanize_kc_code("error-user-attribute-required", Some("firstName"));
+        assert_eq!(msg, "First name is required.");
+    }
+
+    #[test]
+    fn unmapped_code_still_names_the_field() {
+        let msg = humanize_kc_code("some-future-error-code", Some("username"));
+        assert_eq!(msg, "Username: some-future-error-code");
+    }
+
+    #[test]
+    fn no_field_falls_back_to_generic_subject() {
+        let msg = humanize_kc_code("error-user-attribute-required", None);
+        assert_eq!(msg, "This field is required.");
+    }
+
+    #[test]
+    fn parse_kc_error_400_uses_humanized_message() {
+        let body = r#"{"field":"email","errorMessage":"error-user-attribute-required"}"#.to_string();
+        match parse_kc_error(400, body) {
+            ProviderError::Validation(msg) => assert_eq!(msg, "Email is required."),
+            other => panic!("expected Validation, got {other:?}"),
         }
     }
 }
