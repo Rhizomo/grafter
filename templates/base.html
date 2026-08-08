@@ -96,7 +96,9 @@
 
     .sidebar-hr { border: none; border-top: 1px solid var(--border); flex-shrink: 0; }
 
-    .sidebar-nav { flex: 1; padding: 6px 0 8px; }
+    /* Centered rather than top-pinned so a short nav (e.g. the 2-link
+       operator view) doesn't read as a mostly-empty column. */
+    .sidebar-nav { flex: 1; padding: 6px 0 8px; display: flex; flex-direction: column; justify-content: center; }
 
     .sidebar-section-label {
       display: block;
