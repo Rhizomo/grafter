@@ -372,6 +372,25 @@
       100% { transform: scale(1);   opacity: 1; }
     }
 
+    /* Empty-state icons draw themselves in like a line sketch, rather than
+       just appearing — a small, deliberate touch instead of a static icon. */
+    .empty-state-icon path,
+    .empty-state-icon circle,
+    .empty-state-icon line {
+      stroke-dasharray: 1;
+      stroke-dashoffset: 1;
+      animation: draw-in 1s cubic-bezier(0.16,1,0.3,1) forwards;
+    }
+    .empty-state-icon circle       { animation-delay: 0.15s; }
+    .empty-state-icon line:nth-of-type(1) { animation-delay: 0.3s; }
+    .empty-state-icon line:nth-of-type(2) { animation-delay: 0.4s; }
+    @keyframes draw-in { to { stroke-dashoffset: 0; } }
+    @media (prefers-reduced-motion: reduce) {
+      .empty-state-icon path, .empty-state-icon circle, .empty-state-icon line {
+        animation: none; stroke-dashoffset: 0;
+      }
+    }
+
     /* Sidebar entrance */
     .sidebar { animation: sidebar-in 0.32s cubic-bezier(0.16,1,0.3,1) both; }
 
