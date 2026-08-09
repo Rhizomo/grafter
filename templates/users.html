@@ -65,6 +65,7 @@
     <label>Team</label>
     <select id="f-team" onchange="filterTable()">
       <option value="">All teams</option>
+      <option value="__none__">No team</option>
       {% for g in team_groups %}
         <option value="{{ g.name }}">{{ g.name }}</option>
       {% endfor %}
@@ -183,11 +184,13 @@ function filterTable() {
 
   let visible = 0;
   document.querySelectorAll('tr[data-row]').forEach(row => {
+    const teamMatch = team === '__none__' ? !row.dataset.team
+      : (!team || row.dataset.team.includes(team));
     const match =
       (!search || row.dataset.username.includes(search) || row.dataset.name.includes(search)) &&
       (!realm  || row.dataset.realm  === realm) &&
       (!status || row.dataset.status === status) &&
-      (!team   || row.dataset.team.includes(team));
+      teamMatch;
     row.style.display = match ? '' : 'none';
     if (match) visible++;
   });

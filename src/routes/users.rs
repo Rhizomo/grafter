@@ -36,8 +36,13 @@ fn check_realm_access(state: &AppState, current_user: &crate::session::SessionUs
 
 // ── Team group helpers ────────────────────────────────────────────────────────
 
+// Groups that exist in Keycloak but aren't a "team" a human belongs to —
+// excluded from the picker HR/admins use to assign someone's team.
+const NON_TEAM_GROUPS: &[&str] = &["service-accounts"];
+
 async fn load_team_groups(state: &AppState, realm: &str) -> Result<Vec<Group>, AppError> {
     let mut groups = state.provider.list_groups(realm).await?;
+    groups.retain(|g| !NON_TEAM_GROUPS.contains(&g.name.as_str()));
     groups.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(groups)
 }
@@ -214,7 +219,7 @@ async fn bulk_edit(
     // Resolve team group once (all users assumed to be in same realm)
     let realm = body.users.first().map(|u| u.realm.as_str()).unwrap_or("");
     let all_groups = if body.team_group_id.as_deref().is_some_and(|g| !g.is_empty()) {
-        state.provider.list_groups(realm).await?
+        load_team_groups(&state, realm).await?
     } else {
         Vec::new()
     };
