@@ -60,6 +60,21 @@ pub enum AuditOutcome {
     Failure(String),
 }
 
+// Grafter-owned annotations about a user that don't belong in the identity
+// provider: HR notes and the reason an account was disabled. Kept here rather
+// than as Keycloak attributes because the realm's declarative user profile
+// silently drops any attribute it hasn't declared, and because this is
+// Grafter's own metadata rather than identity data.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct UserMeta {
+    #[serde(default)]
+    pub notes: String,
+    #[serde(default)]
+    pub status_reason: String,
+    pub updated_by: Option<String>,
+    pub updated_at: Option<DateTime<Utc>>,
+}
+
 // ── Storage trait ──────────────────────────────────────────────────────────────
 
 #[async_trait]
@@ -72,4 +87,7 @@ pub trait ChangeStorage: Send + Sync + 'static {
 
     async fn append_audit(&self, entry: &AuditEntry) -> Result<()>;
     async fn list_audit(&self, date: Option<&str>) -> Result<Vec<AuditEntry>>;
+
+    async fn get_user_meta(&self, realm: &str, user_id: &str) -> Result<UserMeta>;
+    async fn save_user_meta(&self, realm: &str, user_id: &str, meta: &UserMeta) -> Result<()>;
 }

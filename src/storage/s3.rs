@@ -52,6 +52,10 @@ impl S3Storage {
     fn audit_prefix(&self, date: &str) -> Path {
         Path::from(format!("{}/audit/{}/", self.prefix, date))
     }
+
+    fn user_meta_path(&self, realm: &str, user_id: &str) -> Path {
+        Path::from(format!("{}/user-meta/{}/{}.json", self.prefix, realm, user_id))
+    }
 }
 
 #[async_trait]
@@ -177,5 +181,27 @@ impl ChangeStorage for S3Storage {
 
         entries.sort_by_key(|e| e.timestamp);
         Ok(entries)
+    }
+
+    // Absent metadata is normal (most users have no notes), so a missing
+    // object is an empty UserMeta rather than an error.
+    async fn get_user_meta(&self, realm: &str, user_id: &str) -> Result<super::UserMeta> {
+        match self.store.get(&self.user_meta_path(realm, user_id)).await {
+            Ok(obj) => {
+                let bytes = obj.bytes().await?;
+                Ok(serde_json::from_slice(&bytes).unwrap_or_default())
+            }
+            Err(object_store::Error::NotFound { .. }) => Ok(super::UserMeta::default()),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    async fn save_user_meta(&self, realm: &str, user_id: &str, meta: &super::UserMeta) -> Result<()> {
+        let data = serde_json::to_vec(meta)?;
+        self.store
+            .put(&self.user_meta_path(realm, user_id), Bytes::from(data).into())
+            .await
+            .context("s3 put user meta")?;
+        Ok(())
     }
 }

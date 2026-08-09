@@ -12,7 +12,7 @@ use crate::provider::{
     AppClient, CreateUser, Group, IdentityProvider, ListUsersQuery, ProviderResult, Realm, Role,
     UpdateAppClient, UpdateUser, User,
 };
-use crate::storage::{AuditEntry, ChangeStatus, ChangeStorage, PendingChange};
+use crate::storage::{AuditEntry, ChangeStatus, ChangeStorage, PendingChange, UserMeta};
 
 #[derive(Default)]
 pub struct FakeProvider {
@@ -160,6 +160,7 @@ impl IdentityProvider for FakeProvider {
 pub struct FakeStorage {
     pub changes: Mutex<Vec<PendingChange>>,
     pub audit: Mutex<Vec<AuditEntry>>,
+    pub user_meta: Mutex<HashMap<String, UserMeta>>,
 }
 
 impl FakeStorage {
@@ -204,5 +205,14 @@ impl ChangeStorage for FakeStorage {
 
     async fn list_audit(&self, _date: Option<&str>) -> anyhow::Result<Vec<AuditEntry>> {
         Ok(self.audit.lock().unwrap().clone())
+    }
+
+    async fn get_user_meta(&self, realm: &str, user_id: &str) -> anyhow::Result<UserMeta> {
+        Ok(self.user_meta.lock().unwrap().get(&format!("{realm}/{user_id}")).cloned().unwrap_or_default())
+    }
+
+    async fn save_user_meta(&self, realm: &str, user_id: &str, meta: &UserMeta) -> anyhow::Result<()> {
+        self.user_meta.lock().unwrap().insert(format!("{realm}/{user_id}"), meta.clone());
+        Ok(())
     }
 }

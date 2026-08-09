@@ -60,6 +60,7 @@ pub fn router() -> Router<AppState> {
         .route("/users/:realm/:id/roles/remove", post(remove_role))
         .route("/users/:realm/:id/set-password", post(set_user_password))
         .route("/users/:realm/:id/delete", post(delete_user))
+        .route("/users/:realm/:id/notes", post(save_notes))
 }
 
 async fn index(session: Session) -> Result<impl IntoResponse, AppError> {
@@ -68,7 +69,7 @@ async fn index(session: Session) -> Result<impl IntoResponse, AppError> {
         .await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?
     {
-        Some(_) => Ok(Redirect::to("/users")),
+        Some(_) => Ok(Redirect::to("/dashboard")),
         None => Ok(Redirect::to("/auth/login")),
     }
 }
@@ -328,6 +329,7 @@ async fn user_detail(
     let roles = state.provider.get_user_realm_roles(&realm, &id).await?;
     let all_groups = state.provider.list_groups(&realm).await?;
     let all_roles = state.provider.list_realm_roles(&realm).await?;
+    let user_meta = state.storage.get_user_meta(&realm, &id).await.map_err(AppError::Internal)?;
 
     let team_groups = load_team_groups(&state, &realm).await?;
     // Find which team group this user currently belongs to
@@ -366,6 +368,7 @@ async fn user_detail(
     ctx.insert("active_tab", "users");
     ctx.insert("realm", &realm);
     ctx.insert("subject", &user);
+    ctx.insert("meta", &user_meta);
     ctx.insert("groups", &groups);
     ctx.insert("roles", &roles);
     ctx.insert("all_groups", &all_groups);
@@ -877,4 +880,63 @@ async fn delete_user(
         .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?;
 
     Ok(Redirect::to(&format!("/users?realm={realm}")))
+}
+
+// ── HR notes ──────────────────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct NotesForm {
+    csrf_token: String,
+    notes: String,
+}
+
+// Free-text HR annotation, stored in Grafter's own bucket rather than as a
+// Keycloak attribute — the realm's declarative user profile silently drops
+// undeclared attributes, and this is Grafter metadata, not identity data.
+// Applies immediately for operators as well as admins: a note isn't access,
+// and making HR wait for approval to write one would make it useless.
+// Overwrites in place (editable/updatable); the audit log records who and when.
+async fn save_notes(
+    State(state): State<AppState>,
+    session: Session,
+    Path((realm, id)): Path<(String, String)>,
+    Form(form): Form<NotesForm>,
+) -> Result<impl IntoResponse, AppError> {
+    let current_user = require_session(&session, &state).await?;
+
+    let session_csrf: String = session.get("csrf").await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?
+        .ok_or(AppError::CsrfMismatch)?;
+    if !csrf_tokens_equal(&form.csrf_token, &session_csrf) {
+        return Err(AppError::CsrfMismatch);
+    }
+
+    check_realm_access(&state, &current_user, &realm)?;
+
+    let notes = form.notes.trim();
+    let user = state.provider.get_user(&realm, &id).await?;
+
+    let mut meta = state.storage.get_user_meta(&realm, &id).await.map_err(AppError::Internal)?;
+    meta.notes = notes.to_string();
+    meta.updated_by = Some(current_user.username.clone());
+    meta.updated_at = Some(Utc::now());
+
+    crate::routes::audit_failure(
+        &state,
+        state.storage.save_user_meta(&realm, &id, &meta).await,
+        &current_user.username, "update_notes", &realm, Some(&user.username),
+    ).await.map_err(AppError::Internal)?;
+
+    state.storage.append_audit(&AuditEntry {
+        id: Uuid::new_v4().to_string(), timestamp: Utc::now(),
+        actor: current_user.username.clone(), action: "update_notes".into(),
+        target_realm: realm.clone(), target_user: Some(user.username.clone()),
+        detail: if notes.is_empty() { "notes cleared".into() } else { "notes updated".into() },
+        outcome: AuditOutcome::Success,
+    }).await.map_err(AppError::Internal)?;
+
+    session.insert(FLASH_KEY, Flash::success("Notes saved.")).await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?;
+
+    Ok(Redirect::to(&format!("/users/{realm}/{id}")))
 }

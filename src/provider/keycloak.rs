@@ -31,8 +31,29 @@ fn humanize_field(field: &str) -> String {
     }
 }
 
+// Arabic block plus the Arabic Supplement/Extended ranges Persian draws from.
+fn is_arabic_script(c: char) -> bool {
+    matches!(c, '\u{0600}'..='\u{06FF}' | '\u{0750}'..='\u{077F}' | '\u{FB50}'..='\u{FDFF}' | '\u{FE70}'..='\u{FEFF}')
+}
+
 fn humanize_kc_code(code: &str, field: Option<&str>) -> String {
     let subject = field.map(humanize_field).unwrap_or_else(|| "This field".to_string());
+
+    // Realm admins can attach their own error-message text to a user-profile
+    // validator, and it may be written in any language (the phone_number
+    // pattern here carries a Persian one). Grafter's UI is English, so rather
+    // than passing that straight through, fall back to a message we control.
+    // Detect the script rather than testing is_ascii(), so a perfectly good
+    // English message containing an em-dash or curly quote isn't discarded.
+    if code.chars().any(is_arabic_script) {
+        return match field {
+            Some("phone_number") => {
+                "Phone number must be 11 digits starting with 09 — e.g. 09123456789.".to_string()
+            }
+            _ => format!("{subject} is not in the expected format."),
+        };
+    }
+
     match code {
         "error-user-attribute-required" => format!("{subject} is required."),
         "error-invalid-email" => format!("{subject} must be a valid email address."),
@@ -740,5 +761,26 @@ mod error_message_tests {
             ProviderError::Validation(msg) => assert_eq!(msg, "Email is required."),
             other => panic!("expected Validation, got {other:?}"),
         }
+    }
+
+    // The realm's phone_number validator carries a Persian error-message,
+    // which must never reach an English-only UI verbatim.
+    #[test]
+    fn non_english_custom_message_is_replaced_for_phone_number() {
+        let msg = humanize_kc_code(
+            "شماره موبایل معتبر وارد کنید (مثلاً 09123456789)",
+            Some("phone_number"),
+        );
+        assert!(
+            !msg.chars().any(is_arabic_script),
+            "message shown to users must not carry through non-English text: {msg}"
+        );
+        assert!(msg.contains("09"));
+    }
+
+    #[test]
+    fn non_english_custom_message_falls_back_generically() {
+        let msg = humanize_kc_code("مقدار نامعتبر", Some("personnel_code"));
+        assert_eq!(msg, "Personnel code is not in the expected format.");
     }
 }

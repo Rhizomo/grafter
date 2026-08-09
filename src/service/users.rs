@@ -26,7 +26,7 @@ pub async fn propose_or_apply(
 ) -> Result<Flash, AppError> {
     match role {
         Role::Admin => {
-            apply_change_diff(provider, req.realm, req.user_id, &req.diff).await?;
+            apply_change_diff(provider, storage, req.realm, req.user_id, &req.diff).await?;
             storage
                 .append_audit(&AuditEntry {
                     id: Uuid::new_v4().to_string(),
@@ -194,6 +194,24 @@ mod tests {
         propose_or_apply(&Role::Admin, &provider, &storage, req(diff)).await.unwrap();
 
         assert!(provider.group_ids_of("smartech", "u1").is_empty());
+    }
+
+    // Regression: status_reason used to be written as a Keycloak attribute,
+    // which the realm's user profile silently drops — the reason vanished
+    // while the UI reported success. It must land in Grafter's own storage.
+    #[tokio::test]
+    async fn disable_reason_persists_to_storage() {
+        let (provider, storage) = seeded();
+        let diff = vec![
+            FieldChange { field: "enabled".into(), before: Some("true".into()), after: "false".into() },
+            FieldChange { field: "status_reason".into(), before: None, after: "Resigned".into() },
+        ];
+
+        propose_or_apply(&Role::Admin, &provider, &storage, req(diff)).await.unwrap();
+
+        let meta = storage.get_user_meta("smartech", "u1").await.unwrap();
+        assert_eq!(meta.status_reason, "Resigned");
+        assert!(!provider.get_seeded_user("smartech", "u1").enabled);
     }
 
     #[tokio::test]

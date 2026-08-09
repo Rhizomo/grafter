@@ -11,6 +11,10 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
+      /* Recolors every native control's highlight (dropdown selection,
+         checkboxes, text selection handles) away from the OS default blue. */
+      accent-color: #00bfa5;
+      color-scheme: dark;
       --bg:           #060e0d;
       --surface:      #0b1f1d;
       --surface2:     #102624;
@@ -301,6 +305,11 @@
       background-repeat: no-repeat; background-position: right 11px center; cursor: pointer;
     }
     select option { background: var(--surface2); color: var(--text-strong); }
+    /* Without this the highlighted option in an open dropdown falls back to
+       the OS accent (bright blue), which reads as foreign against the theme. */
+    select option:checked, select option:hover {
+      background: var(--teal-glow); color: var(--text-strong);
+    }
     input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; cursor: pointer; }
     label { font-size: 0.7rem; font-weight: 600; color: var(--muted); display: block; margin-bottom: 5px; letter-spacing: 0.8px; text-transform: uppercase; }
     .field { margin-bottom: 16px; }
@@ -503,6 +512,14 @@
   <!-- Nav -->
   <nav class="sidebar-nav">
     <span class="sidebar-section-label">Identity</span>
+
+    <a href="/dashboard" class="sidebar-link {% if active_tab == "dashboard" %}active{% endif %}">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/>
+        <rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/>
+      </svg>
+      Dashboard
+    </a>
 
     <a href="/users" class="sidebar-link {% if active_tab == "users" %}active{% endif %}">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

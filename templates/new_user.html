@@ -101,7 +101,9 @@
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 14px;">
         <div class="field">
           <label for="new_phone">Phone number</label>
-          <input type="text" id="new_phone" name="phone_number" autocomplete="tel" placeholder="+98…" style="width:100%;">
+          <input type="text" id="new_phone" name="phone_number" autocomplete="tel"
+                 pattern="09[0-9]{9}" title="11 digits starting with 09 — e.g. 09123456789"
+                 placeholder="09123456789" style="width:100%;">
         </div>
         <div class="field">
           <label for="new_personnel_code">Personnel code</label>

@@ -222,6 +222,7 @@ async fn approve(
         &state,
         crate::service::changes::apply_change_diff(
             &*state.provider,
+            &*state.storage,
             &change.realm,
             &change.user_id,
             &change.diff,
