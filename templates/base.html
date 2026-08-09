@@ -681,6 +681,16 @@
     el.textContent = formatTs(el.textContent);
   });
 
+  // Creation dates arrive as unix millis so they stay sortable as numbers;
+  // rendered date-only, since a table of times is noise at a glance.
+  document.querySelectorAll('.created-date').forEach(function(el) {
+    var ms = Number(el.dataset.ms);
+    if (!ms) { el.textContent = '—'; return; }
+    el.textContent = new Date(ms).toLocaleDateString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric'
+    });
+  });
+
   // Modal animation helper
   window.graft = {
     showModal: function(overlay) {

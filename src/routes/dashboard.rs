@@ -61,10 +61,27 @@ async fn dashboard(
 
     let realm = state.config.oidc_issuer.rsplit('/').next().unwrap_or("smartech").to_string();
 
-    let users = state
+    let mut users = state
         .provider
         .list_users(&realm, &ListUsersQuery::new().page(0, 2000))
         .await?;
+
+    // Service accounts (monitoring/alerting logins) aren't people — counting
+    // them would inflate headcount and, since they have no team, permanently
+    // park them in the attention list where nobody can action them.
+    let service_ids: std::collections::HashSet<String> = {
+        let groups = state.provider.list_groups(&realm).await?;
+        match groups.iter().find(|g| g.name == "service-accounts") {
+            Some(g) => state
+                .provider
+                .list_group_members(&realm, &g.id)
+                .await
+                .map(|members| members.into_iter().map(|u| u.id).collect())
+                .unwrap_or_default(),
+            None => Default::default(),
+        }
+    };
+    users.retain(|u| !service_ids.contains(&u.id));
 
     let total = users.len();
     let active = users.iter().filter(|u| u.enabled).count();
@@ -97,13 +114,18 @@ async fn dashboard(
     let attention_total = attention.len();
     attention.truncate(10);
 
-    // Team breakdown, largest first — only teams that actually have members.
+    // Team breakdown over *active* people only. Including disabled accounts
+    // would swamp the split — most of them predate teams and would show up as
+    // one huge "no team" block that nobody intends to act on.
     let team_groups = load_team_groups(&state, &realm).await?;
     let mut teams: Vec<TeamCount> = team_groups
         .iter()
         .map(|g| {
-            let count = users.iter().filter(|u| u.team() == Some(g.name.as_str())).count();
-            TeamCount { name: g.name.clone(), count, pct: pct_of(count, total), color: "" }
+            let count = users
+                .iter()
+                .filter(|u| u.enabled && u.team() == Some(g.name.as_str()))
+                .count();
+            TeamCount { name: g.name.clone(), count, pct: pct_of(count, active), color: "" }
         })
         .filter(|t| t.count > 0)
         .collect();
@@ -112,7 +134,7 @@ async fn dashboard(
         t.color = TEAM_COLORS[i % TEAM_COLORS.len()];
     }
 
-    let teamless = total.saturating_sub(teams.iter().map(|t| t.count).sum::<usize>());
+    let teamless = active.saturating_sub(teams.iter().map(|t| t.count).sum::<usize>());
 
     // Request states. An operator only ever sees their own proposals, matching
     // what the changes queue shows them.
@@ -148,7 +170,7 @@ async fn dashboard(
     ctx.insert("active_pct", &pct_of(active, total));
     ctx.insert("disabled_pct", &pct_of(disabled, total));
     ctx.insert("teamless", &teamless);
-    ctx.insert("teamless_pct", &pct_of(teamless, total));
+    ctx.insert("teamless_pct", &pct_of(teamless, active));
     ctx.insert("attention", &attention);
     ctx.insert("attention_total", &attention_total);
     ctx.insert("teams", &teams);

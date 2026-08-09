@@ -93,6 +93,7 @@ mod tests {
             last_name: Some("User".into()),
             enabled: true,
             attributes: HashMap::new(),
+            created_at: None,
         });
         provider.seed_group(Group {
             id: "g-old".into(), name: "old-team".into(), path: "/old-team".into(),

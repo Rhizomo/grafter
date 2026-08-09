@@ -5,6 +5,17 @@
 <style>
   /* Hero: one composed panel instead of a row of equal metric boxes, so the
      eye lands on the headline figure first and the rest reads as support. */
+  /* Every panel gets the same lifted treatment as .card so the page reads as
+     a set of floating surfaces rather than flat regions. */
+  .hero, .pipe-node, .card {
+    box-shadow: 0 1px 3px rgba(0,0,0,0.28), 0 4px 14px rgba(0,0,0,0.16);
+    transition: box-shadow 0.22s ease, border-color 0.22s ease, transform 0.22s cubic-bezier(0.16,1,0.3,1);
+  }
+  .hero:hover, .pipe-node:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.32), 0 12px 28px rgba(0,0,0,0.22);
+    border-color: var(--border2);
+  }
   .hero {
     display: grid; grid-template-columns: 168px 1fr; gap: 32px; align-items: center;
     background: var(--surface); border: 1px solid var(--border);
@@ -34,24 +45,28 @@
   .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; align-self: center; }
   .legend-num { font-size: 1.05rem; font-weight: 700; color: var(--text-strong); letter-spacing: -0.4px; }
 
-  /* Requests as a left-to-right pipeline — proposals flow in and resolve. */
-  .pipe { display: flex; align-items: stretch; gap: 0; margin-bottom: 18px; }
+  /* Requests: compact separated tiles rather than three full-width slabs,
+     which stretched to the page edge and dwarfed their own numbers. */
+  .pipe { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
   .pipe-node {
-    flex: 1; background: var(--surface); border: 1px solid var(--border);
-    padding: 15px 18px; position: relative;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 14px 16px;
   }
-  .pipe-node:first-child { border-radius: var(--radius-lg) 0 0 var(--radius-lg); }
-  .pipe-node:last-child  { border-radius: 0 var(--radius-lg) var(--radius-lg) 0; }
-  .pipe-node + .pipe-node { border-left: none; }
   .pipe-label { font-size: 0.63rem; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted2); margin-bottom: 7px; }
-  .pipe-num { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.8px; line-height: 1; }
-  .pipe-foot { font-size: 0.72rem; color: var(--muted2); margin-top: 6px; }
+  .pipe-num { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.8px; line-height: 1; }
+  .pipe-foot { font-size: 0.71rem; color: var(--muted2); margin-top: 6px; }
 
   /* Whole-org split in a single bar, rather than one progress bar per team. */
-  .split { display: flex; height: 12px; border-radius: 99px; overflow: hidden; background: var(--surface2); margin-bottom: 16px; }
+  .split { display: flex; height: 12px; border-radius: 99px; overflow: hidden; background: var(--surface2); margin-bottom: 18px; }
   .split span { display: block; height: 100%; transition: width 0.7s cubic-bezier(0.16,1,0.3,1); }
-  .team-legend { display: flex; flex-wrap: wrap; gap: 10px 20px; }
-  .team-legend-item { display: flex; align-items: center; gap: 7px; font-size: 0.8rem; color: var(--muted); }
+  .team-rows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 26px; }
+  .team-row {
+    display: flex; align-items: center; gap: 9px; padding: 7px 0;
+    border-bottom: 1px solid var(--border); font-size: 0.82rem; color: var(--muted);
+  }
+  .team-row-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .team-row-num { color: var(--text-strong); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .team-row-pct { color: var(--muted2); font-size: 0.73rem; width: 38px; text-align: right; font-variant-numeric: tabular-nums; }
 
   .dash-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
   .att-row {
@@ -69,7 +84,7 @@
   <div>
     <h1 style="margin-bottom:2px;">Overview</h1>
     <span style="font-size:0.8rem; color:var(--muted);">
-      {% if is_admin %}Everything in {{ realm }} at a glance{% else %}Your workspace in {{ realm }}{% endif %}
+      {% if is_admin %}Users and requests in {{ realm }}{% else %}Users and your requests in {{ realm }}{% endif %}
     </span>
   </div>
   <a href="/users/new" class="btn btn-primary">+ New user</a>
@@ -93,11 +108,12 @@
   <div style="position:relative;z-index:1;">
     <p class="hero-lead">
       {% if attention_total > 0 %}
-        <b>{{ active_users }}</b> of {{ total_users }} accounts are active, and
-        <b>{{ attention_total }}</b> need{% if attention_total == 1 %}s{% endif %} a look before the directory is tidy.
+        <b>{{ active_users }}</b> of {{ total_users }} accounts can sign in.
+        <b>{{ attention_total }}</b> {% if attention_total == 1 %}account is{% else %}accounts are{% endif %}
+        either missing a team or were disabled without being removed from one.
       {% else %}
-        <b>{{ active_users }}</b> of {{ total_users }} accounts are active. Every account has a team
-        and a consistent status — nothing needs attention.
+        <b>{{ active_users }}</b> of {{ total_users }} accounts can sign in, every active account
+        has a team, and no disabled account was left in one.
       {% endif %}
     </p>
     <div class="legend">
@@ -111,33 +127,14 @@
       </div>
       <div class="legend-item">
         <span class="legend-dot" style="background:var(--warning);"></span>
-        <span class="legend-num">{{ teamless }}</span> without a team
+        <span class="legend-num">{{ teamless }}</span> active, no team
       </div>
     </div>
   </div>
 </div>
 
-<!-- Request pipeline -->
-<div class="pipe">
-  <div class="pipe-node">
-    <div class="pipe-label">{% if is_admin %}Awaiting you{% else %}Your pending{% endif %}</div>
-    <div class="pipe-num" style="color:{% if req_pending > 0 %}var(--warning){% else %}var(--muted){% endif %};">{{ req_pending }}</div>
-    <div class="pipe-foot"><a href="/changes" style="color:var(--teal);">open the queue →</a></div>
-  </div>
-  <div class="pipe-node">
-    <div class="pipe-label">Approved</div>
-    <div class="pipe-num" style="color:var(--accent);">{{ req_approved }}</div>
-    <div class="pipe-foot">applied to Keycloak</div>
-  </div>
-  <div class="pipe-node">
-    <div class="pipe-label">Rejected</div>
-    <div class="pipe-num" style="color:var(--muted);">{{ req_rejected }}</div>
-    <div class="pipe-foot">never applied</div>
-  </div>
-</div>
-
 <div class="dash-cols">
-  <!-- Attention -->
+  <!-- Needs attention -->
   <div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
       <h2 style="margin:0;">Needs attention</h2>
@@ -170,32 +167,61 @@
     {% endif %}
   </div>
 
-  <!-- Team split -->
+  <!-- Requests -->
   <div class="card">
-    <h2>How the org splits</h2>
-    {% if teams %}
-      <div class="split">
-        {% for t in teams %}<span style="width:{{ t.pct }}%;background:{{ t.color }};" title="{{ t.name }}: {{ t.count }}"></span>{% endfor %}
-        {% if teamless > 0 %}<span style="width:{{ teamless_pct }}%;background:var(--surface2);" title="No team: {{ teamless }}"></span>{% endif %}
+    <h2>Requests</h2>
+    <div class="pipe">
+      <div class="pipe-node">
+        <div class="pipe-label">{% if is_admin %}Awaiting you{% else %}Pending{% endif %}</div>
+        <div class="pipe-num" style="color:{% if req_pending > 0 %}var(--warning){% else %}var(--muted){% endif %};">{{ req_pending }}</div>
+        <div class="pipe-foot"><a href="/changes" style="color:var(--teal);">open queue →</a></div>
       </div>
-      <div class="team-legend">
-        {% for t in teams %}
-        <div class="team-legend-item">
-          <span class="legend-dot" style="background:{{ t.color }};"></span>
-          {{ t.name }} <span style="color:var(--text-strong);font-weight:600;">{{ t.count }}</span>
-        </div>
-        {% endfor %}
-        {% if teamless > 0 %}
-        <div class="team-legend-item">
-          <span class="legend-dot" style="background:var(--surface2);border:1px solid var(--border2);"></span>
-          No team <span style="color:var(--warning);font-weight:600;">{{ teamless }}</span>
-        </div>
-        {% endif %}
+      <div class="pipe-node">
+        <div class="pipe-label">Approved</div>
+        <div class="pipe-num" style="color:var(--accent);">{{ req_approved }}</div>
+        <div class="pipe-foot">applied</div>
       </div>
-    {% else %}
-      <p style="font-size:0.84rem;color:var(--muted);">No teams have members yet.</p>
-    {% endif %}
+      <div class="pipe-node">
+        <div class="pipe-label">Rejected</div>
+        <div class="pipe-num" style="color:var(--muted);">{{ req_rejected }}</div>
+        <div class="pipe-foot">not applied</div>
+      </div>
+    </div>
   </div>
+</div>
+
+<!-- Team split: full width, since the bar reads better long -->
+<div class="card">
+  <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;">
+    <h2 style="margin:0;">How the org splits</h2>
+    <span style="font-size:0.74rem;color:var(--muted2);">{{ active_users }} active people</span>
+  </div>
+  {% if teams %}
+    <div class="split">
+      {% for t in teams %}<span style="width:{{ t.pct }}%;background:{{ t.color }};" title="{{ t.name }}: {{ t.count }}"></span>{% endfor %}
+      {% if teamless > 0 %}<span style="width:{{ teamless_pct }}%;background:var(--surface2);" title="No team: {{ teamless }}"></span>{% endif %}
+    </div>
+    <div class="team-rows">
+      {% for t in teams %}
+      <div class="team-row">
+        <span class="legend-dot" style="background:{{ t.color }};"></span>
+        <span class="team-row-name">{{ t.name }}</span>
+        <span class="team-row-num">{{ t.count }}</span>
+        <span class="team-row-pct">{{ t.pct | round }}%</span>
+      </div>
+      {% endfor %}
+      {% if teamless > 0 %}
+      <div class="team-row">
+        <span class="legend-dot" style="background:var(--surface2);border:1px solid var(--border2);"></span>
+        <span class="team-row-name" style="color:var(--warning);">No team yet</span>
+        <span class="team-row-num" style="color:var(--warning);">{{ teamless }}</span>
+        <span class="team-row-pct">{{ teamless_pct | round }}%</span>
+      </div>
+      {% endif %}
+    </div>
+  {% else %}
+    <p style="font-size:0.84rem;color:var(--muted);">No active user has a team yet.</p>
+  {% endif %}
 </div>
 
 {% if is_admin %}

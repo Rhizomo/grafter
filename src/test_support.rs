@@ -76,6 +76,7 @@ impl IdentityProvider for FakeProvider {
             last_name: user.last_name,
             enabled: user.enabled,
             attributes: user.attributes,
+            created_at: Some(chrono::Utc::now().timestamp_millis()),
         };
         users.insert(user_key(realm, &id), u.clone());
         Ok(u)
@@ -118,6 +119,19 @@ impl IdentityProvider for FakeProvider {
     async fn get_user_groups(&self, realm: &str, user_id: &str) -> ProviderResult<Vec<Group>> {
         let ids = self.group_ids_of(realm, user_id);
         Ok(self.groups.lock().unwrap().iter().filter(|g| ids.contains(&g.id)).cloned().collect())
+    }
+
+    async fn list_group_members(&self, realm: &str, group_id: &str) -> ProviderResult<Vec<User>> {
+        let ug = self.user_groups.lock().unwrap();
+        let users = self.users.lock().unwrap();
+        Ok(users
+            .iter()
+            .filter(|(key, _)| {
+                key.starts_with(&format!("{realm}/"))
+                    && ug.get(*key).is_some_and(|gs| gs.iter().any(|g| g == group_id))
+            })
+            .map(|(_, u)| u.clone())
+            .collect())
     }
 
     async fn create_group(&self, _realm: &str, name: &str, _parent_id: Option<&str>) -> ProviderResult<Group> {

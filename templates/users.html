@@ -114,6 +114,7 @@
         <th class="col-realm" {% if realms | length <= 1 %}style="display:none;"{% endif %}>Realm</th>
         <th class="sortable" data-col="4">Status<span class="sort-ind">▲</span></th>
         <th class="sortable" data-col="5">Team<span class="sort-ind">▲</span></th>
+        <th class="sortable" data-col="6" data-sort="num">Created<span class="sort-ind">▲</span></th>
         <th style="width:24px;"></th>
       </tr>
     </thead>
@@ -145,6 +146,9 @@
         </td>
         <td style="color:var(--teal); font-size:0.84rem;">
           {% if team %}{{ team }}{% else %}<span style="color:var(--muted2);">No team</span>{% endif %}
+        </td>
+        <td style="color:var(--muted); font-size:0.8rem; white-space:nowrap;" data-sort-value="{{ u.created_at | default(value=0) }}">
+          {% if u.created_at %}<span class="created-date" data-ms="{{ u.created_at }}"></span>{% else %}<span style="color:var(--muted2);">—</span>{% endif %}
         </td>
         <td class="row-nav">›</td>
       </tr>
@@ -263,7 +267,15 @@ function clearSelection() {
       th.dataset.dir = asc ? 'asc' : 'desc';
       th.querySelector('.sort-ind').textContent = asc ? '▲' : '▼';
       const rows = [...tbody.querySelectorAll('tr[data-row]')];
+      // Dates carry a raw timestamp in data-sort-value; sorting their
+      // formatted text would order them alphabetically, which is meaningless.
+      const numeric = th.dataset.sort === 'num';
       rows.sort((a, b) => {
+        if (numeric) {
+          const x = Number(a.cells[col].dataset.sortValue || 0);
+          const y = Number(b.cells[col].dataset.sortValue || 0);
+          return asc ? x - y : y - x;
+        }
         const x = a.cells[col].innerText.trim().toLowerCase();
         const y = b.cells[col].innerText.trim().toLowerCase();
         return asc ? x.localeCompare(y) : y.localeCompare(x);

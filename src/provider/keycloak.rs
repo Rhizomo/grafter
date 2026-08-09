@@ -271,6 +271,8 @@ struct KcUser {
     last_name: Option<String>,
     enabled: Option<bool>,
     attributes: Option<HashMap<String, Vec<String>>>,
+    #[serde(rename = "createdTimestamp")]
+    created_timestamp: Option<i64>,
 }
 
 #[derive(Deserialize)]
@@ -302,6 +304,7 @@ fn kc_user_to_user(u: KcUser) -> User {
         last_name: u.last_name,
         enabled: u.enabled.unwrap_or(false),
         attributes: u.attributes.unwrap_or_default(),
+        created_at: u.created_timestamp,
     }
 }
 
@@ -548,6 +551,12 @@ impl IdentityProvider for KeycloakProvider {
         let url = format!("{}/users/{}/groups", self.admin_url(realm), user_id);
         let groups: Vec<KcGroup> = self.get(&url).await?;
         Ok(groups.into_iter().map(kc_group_to_group).collect())
+    }
+
+    async fn list_group_members(&self, realm: &str, group_id: &str) -> ProviderResult<Vec<User>> {
+        let url = format!("{}/groups/{}/members?max=2000", self.admin_url(realm), group_id);
+        let users: Vec<KcUser> = self.get(&url).await?;
+        Ok(users.into_iter().map(kc_user_to_user).collect())
     }
 
     async fn create_group(&self, realm: &str, name: &str, parent_id: Option<&str>) -> ProviderResult<Group> {

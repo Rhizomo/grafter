@@ -26,6 +26,10 @@ pub struct User {
     pub last_name: Option<String>,
     pub enabled: bool,
     pub attributes: HashMap<String, Vec<String>>,
+    // Unix millis from the provider. Optional because not every provider
+    // exposes it and older serialised records won't carry it.
+    #[serde(default)]
+    pub created_at: Option<i64>,
 }
 
 impl User {
@@ -176,6 +180,7 @@ pub trait IdentityProvider: Send + Sync + 'static {
     // Groups
     async fn list_groups(&self, realm: &str) -> ProviderResult<Vec<Group>>;
     async fn get_user_groups(&self, realm: &str, user_id: &str) -> ProviderResult<Vec<Group>>;
+    async fn list_group_members(&self, realm: &str, group_id: &str) -> ProviderResult<Vec<User>>;
     async fn create_group(&self, realm: &str, name: &str, parent_id: Option<&str>) -> ProviderResult<Group>;
     async fn add_user_to_group(
         &self,
