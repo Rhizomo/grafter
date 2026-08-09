@@ -311,6 +311,24 @@
       background: var(--teal-glow); color: var(--text-strong);
     }
     input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; cursor: pointer; }
+
+    /* Password generator affordances — shared by the create-user form and the
+       admin set-password card, so they live here rather than in one template. */
+    .pw-gen-btn {
+      position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; color: var(--muted); cursor: pointer; padding: 0;
+      line-height: 1; display: flex; align-items: center; gap: 5px;
+      font-size: 0.72rem; font-weight: 500; font-family: inherit; letter-spacing: 0.2px;
+      transition: color 0.15s;
+    }
+    .pw-gen-btn:hover { color: var(--teal); }
+    .pw-copy-toast {
+      position: absolute; right: 0; bottom: calc(100% + 8px);
+      background: var(--surface2); border: 1px solid var(--teal);
+      color: var(--teal); font-size: 0.68rem; font-weight: 600; padding: 2px 8px;
+      border-radius: 5px; white-space: nowrap; opacity: 0;
+      transition: opacity 0.2s; pointer-events: none; letter-spacing: 0; text-transform: none;
+    }
     label { font-size: 0.7rem; font-weight: 600; color: var(--muted); display: block; margin-bottom: 5px; letter-spacing: 0.8px; text-transform: uppercase; }
     .field { margin-bottom: 16px; }
 

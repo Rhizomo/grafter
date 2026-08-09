@@ -3,115 +3,195 @@
 
 {% block content %}
 <style>
-  .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 22px; }
-  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 18px 20px; }
-  .stat-label { font-size: 0.66rem; font-weight: 700; letter-spacing: 1.1px; text-transform: uppercase; color: var(--muted2); margin-bottom: 8px; }
-  .stat-value { font-size: 1.85rem; font-weight: 700; line-height: 1; letter-spacing: -1px; color: var(--text-strong); }
-  .stat-value.teal { color: var(--teal); }
-  .stat-value.accent { color: var(--accent); }
-  .stat-value.warning { color: var(--warning); }
-  .stat-value.muted { color: var(--muted); }
-  .stat-sub { font-size: 0.72rem; color: var(--muted2); margin-top: 7px; }
+  /* Hero: one composed panel instead of a row of equal metric boxes, so the
+     eye lands on the headline figure first and the rest reads as support. */
+  .hero {
+    display: grid; grid-template-columns: 168px 1fr; gap: 32px; align-items: center;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 26px 30px; margin-bottom: 18px;
+    position: relative; overflow: hidden;
+  }
+  .hero::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse 40% 70% at 88% 20%, var(--teal), transparent 70%);
+    opacity: 0.07;
+  }
+  .ring-wrap { position: relative; width: 168px; height: 168px; }
+  .ring { transform: rotate(-90deg); }
+  .ring-track { stroke: var(--surface2); }
+  .ring-seg { stroke-linecap: round; transition: stroke-dashoffset 0.9s cubic-bezier(0.16,1,0.3,1); }
+  .ring-center {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center;
+  }
+  .ring-total { font-size: 2.3rem; font-weight: 700; letter-spacing: -1.5px; color: var(--text-strong); line-height: 1; }
+  .ring-caption { font-size: 0.63rem; font-weight: 700; letter-spacing: 1.3px; text-transform: uppercase; color: var(--muted2); margin-top: 6px; }
 
-  .dash-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
-  .mini-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 0.84rem; }
-  .mini-row:last-child { border-bottom: none; }
-  .bar-track { flex: 1; height: 5px; background: var(--surface2); border-radius: 99px; margin: 0 12px; overflow: hidden; }
-  .bar-fill { height: 100%; background: var(--teal); border-radius: 99px; }
-  .audit-row { padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 0.8rem; line-height: 1.5; }
+  .hero-lead { font-size: 1.02rem; color: var(--text); line-height: 1.7; margin-bottom: 18px; }
+  .hero-lead b { color: var(--text-strong); font-weight: 700; }
+  .legend { display: flex; gap: 22px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: baseline; gap: 8px; font-size: 0.8rem; color: var(--muted); }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; align-self: center; }
+  .legend-num { font-size: 1.05rem; font-weight: 700; color: var(--text-strong); letter-spacing: -0.4px; }
+
+  /* Requests as a left-to-right pipeline — proposals flow in and resolve. */
+  .pipe { display: flex; align-items: stretch; gap: 0; margin-bottom: 18px; }
+  .pipe-node {
+    flex: 1; background: var(--surface); border: 1px solid var(--border);
+    padding: 15px 18px; position: relative;
+  }
+  .pipe-node:first-child { border-radius: var(--radius-lg) 0 0 var(--radius-lg); }
+  .pipe-node:last-child  { border-radius: 0 var(--radius-lg) var(--radius-lg) 0; }
+  .pipe-node + .pipe-node { border-left: none; }
+  .pipe-label { font-size: 0.63rem; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted2); margin-bottom: 7px; }
+  .pipe-num { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.8px; line-height: 1; }
+  .pipe-foot { font-size: 0.72rem; color: var(--muted2); margin-top: 6px; }
+
+  /* Whole-org split in a single bar, rather than one progress bar per team. */
+  .split { display: flex; height: 12px; border-radius: 99px; overflow: hidden; background: var(--surface2); margin-bottom: 16px; }
+  .split span { display: block; height: 100%; transition: width 0.7s cubic-bezier(0.16,1,0.3,1); }
+  .team-legend { display: flex; flex-wrap: wrap; gap: 10px 20px; }
+  .team-legend-item { display: flex; align-items: center; gap: 7px; font-size: 0.8rem; color: var(--muted); }
+
+  .dash-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+  .att-row {
+    display: flex; align-items: center; gap: 10px; padding: 9px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .att-row:last-child { border-bottom: none; }
+  .att-mark { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .audit-row { display: flex; align-items: baseline; gap: 7px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 0.8rem; }
   .audit-row:last-child { border-bottom: none; }
+  .all-clear { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 26px 0; }
 </style>
 
 <div class="page-header">
   <div>
-    <h1 style="margin-bottom:2px;">Dashboard</h1>
+    <h1 style="margin-bottom:2px;">Overview</h1>
     <span style="font-size:0.8rem; color:var(--muted);">
-      {% if is_admin %}Directory overview and approval queue{% else %}Directory overview and your requests{% endif %}
+      {% if is_admin %}Everything in {{ realm }} at a glance{% else %}Your workspace in {{ realm }}{% endif %}
     </span>
   </div>
   <a href="/users/new" class="btn btn-primary">+ New user</a>
 </div>
 
-<!-- User state -->
-<div class="stat-grid">
-  <div class="stat">
-    <div class="stat-label">Total users</div>
-    <div class="stat-value">{{ total_users }}</div>
-    <div class="stat-sub">in {{ realm }}</div>
+<!-- Hero -->
+<div class="hero">
+  <div class="ring-wrap">
+    <svg class="ring" width="168" height="168" viewBox="0 0 42 42" aria-hidden="true">
+      <circle class="ring-track" cx="21" cy="21" r="15.9155" fill="none" stroke-width="3.4"/>
+      <circle class="ring-seg" cx="21" cy="21" r="15.9155" fill="none" stroke="var(--accent)"
+              stroke-width="3.4" pathLength="100"
+              stroke-dasharray="100" stroke-dashoffset="{{ 100 - active_pct }}"/>
+    </svg>
+    <div class="ring-center">
+      <div class="ring-total">{{ total_users }}</div>
+      <div class="ring-caption">people</div>
+    </div>
   </div>
-  <div class="stat">
-    <div class="stat-label">Active</div>
-    <div class="stat-value accent">{{ active_users }}</div>
-    <div class="stat-sub">can sign in</div>
-  </div>
-  <div class="stat">
-    <div class="stat-label">Disabled</div>
-    <div class="stat-value muted">{{ disabled_users }}</div>
-    <div class="stat-sub">access revoked</div>
-  </div>
-  <div class="stat">
-    <div class="stat-label">Needs attention</div>
-    <div class="stat-value {% if attention_total > 0 %}warning{% endif %}">{{ attention_total }}</div>
-    <div class="stat-sub">incomplete setup</div>
+
+  <div style="position:relative;z-index:1;">
+    <p class="hero-lead">
+      {% if attention_total > 0 %}
+        <b>{{ active_users }}</b> of {{ total_users }} accounts are active, and
+        <b>{{ attention_total }}</b> need{% if attention_total == 1 %}s{% endif %} a look before the directory is tidy.
+      {% else %}
+        <b>{{ active_users }}</b> of {{ total_users }} accounts are active. Every account has a team
+        and a consistent status — nothing needs attention.
+      {% endif %}
+    </p>
+    <div class="legend">
+      <div class="legend-item">
+        <span class="legend-dot" style="background:var(--accent);"></span>
+        <span class="legend-num">{{ active_users }}</span> active
+      </div>
+      <div class="legend-item">
+        <span class="legend-dot" style="background:var(--muted2);"></span>
+        <span class="legend-num">{{ disabled_users }}</span> disabled
+      </div>
+      <div class="legend-item">
+        <span class="legend-dot" style="background:var(--warning);"></span>
+        <span class="legend-num">{{ teamless }}</span> without a team
+      </div>
+    </div>
   </div>
 </div>
 
-<!-- Requests -->
-<div class="stat-grid" style="grid-template-columns: repeat(3, 1fr);">
-  <div class="stat">
-    <div class="stat-label">Pending {% if not is_admin %}(yours){% endif %}</div>
-    <div class="stat-value {% if req_pending > 0 %}warning{% endif %}">{{ req_pending }}</div>
-    <div class="stat-sub"><a href="/changes" style="color:var(--teal);">
-      {% if is_admin %}awaiting your approval{% else %}awaiting admin approval{% endif %}</a></div>
+<!-- Request pipeline -->
+<div class="pipe">
+  <div class="pipe-node">
+    <div class="pipe-label">{% if is_admin %}Awaiting you{% else %}Your pending{% endif %}</div>
+    <div class="pipe-num" style="color:{% if req_pending > 0 %}var(--warning){% else %}var(--muted){% endif %};">{{ req_pending }}</div>
+    <div class="pipe-foot"><a href="/changes" style="color:var(--teal);">open the queue →</a></div>
   </div>
-  <div class="stat">
-    <div class="stat-label">Approved</div>
-    <div class="stat-value accent">{{ req_approved }}</div>
-    <div class="stat-sub">applied to Keycloak</div>
+  <div class="pipe-node">
+    <div class="pipe-label">Approved</div>
+    <div class="pipe-num" style="color:var(--accent);">{{ req_approved }}</div>
+    <div class="pipe-foot">applied to Keycloak</div>
   </div>
-  <div class="stat">
-    <div class="stat-label">Rejected</div>
-    <div class="stat-value muted">{{ req_rejected }}</div>
-    <div class="stat-sub">not applied</div>
+  <div class="pipe-node">
+    <div class="pipe-label">Rejected</div>
+    <div class="pipe-num" style="color:var(--muted);">{{ req_rejected }}</div>
+    <div class="pipe-foot">never applied</div>
   </div>
 </div>
 
 <div class="dash-cols">
-  <!-- Attention list -->
+  <!-- Attention -->
   <div class="card">
-    <h2>Needs attention</h2>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <h2 style="margin:0;">Needs attention</h2>
+      {% if attention_total > 0 %}<span class="pill pill-yellow">{{ attention_total }}</span>{% endif %}
+    </div>
     {% if attention %}
       {% for u in attention %}
-      <div class="mini-row">
-        <a href="/users/{{ u.realm }}/{{ u.id }}" class="link-primary" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-          {{ u.full_name }}
-        </a>
-        <span class="pill {% if u.reason == 'No team assigned' %}pill-yellow{% else %}pill-red{% endif %}" style="flex-shrink:0;margin-left:10px;">{{ u.reason }}</span>
+      <div class="att-row">
+        <span class="att-mark" style="background:{% if u.reason == 'No team assigned' %}var(--warning){% else %}var(--danger){% endif %};"></span>
+        <a href="/users/{{ u.realm }}/{{ u.id }}" class="link-primary"
+           style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ u.full_name }}</a>
+        <span style="font-size:0.74rem;color:var(--muted);flex-shrink:0;">{{ u.reason }}</span>
       </div>
       {% endfor %}
       {% if attention_total > 10 %}
-      <div style="margin-top:12px;font-size:0.78rem;color:var(--muted2);">
-        Showing 10 of {{ attention_total }} — <a href="/users" style="color:var(--teal);">see all users</a>
+      <div style="margin-top:12px;font-size:0.76rem;color:var(--muted2);">
+        Showing 10 of {{ attention_total }} — <a href="/users" style="color:var(--teal);">see all</a>
       </div>
       {% endif %}
     {% else %}
-      <p style="font-size:0.84rem;color:var(--muted);">Every account has a team and a consistent status.</p>
+      <div class="all-clear">
+        <svg class="empty-state-icon" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+             style="color:var(--accent);margin-bottom:10px;" aria-hidden="true">
+          <path pathLength="1" d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+          <path pathLength="1" d="M22 4 12 14.01l-3-3"/>
+        </svg>
+        <p style="font-size:0.84rem;color:var(--muted);">Nothing to clean up.</p>
+      </div>
     {% endif %}
   </div>
 
-  <!-- Team breakdown -->
+  <!-- Team split -->
   <div class="card">
-    <h2>Users per team</h2>
+    <h2>How the org splits</h2>
     {% if teams %}
-      {% for t in teams %}
-      <div class="mini-row">
-        <span style="color:var(--text);min-width:90px;">{{ t.name }}</span>
-        <span class="bar-track">
-          <span class="bar-fill" style="width:{{ t.count * 100 / total_users }}%;"></span>
-        </span>
-        <span style="color:var(--muted);font-size:0.78rem;flex-shrink:0;">{{ t.count }}</span>
+      <div class="split">
+        {% for t in teams %}<span style="width:{{ t.pct }}%;background:{{ t.color }};" title="{{ t.name }}: {{ t.count }}"></span>{% endfor %}
+        {% if teamless > 0 %}<span style="width:{{ teamless_pct }}%;background:var(--surface2);" title="No team: {{ teamless }}"></span>{% endif %}
       </div>
-      {% endfor %}
+      <div class="team-legend">
+        {% for t in teams %}
+        <div class="team-legend-item">
+          <span class="legend-dot" style="background:{{ t.color }};"></span>
+          {{ t.name }} <span style="color:var(--text-strong);font-weight:600;">{{ t.count }}</span>
+        </div>
+        {% endfor %}
+        {% if teamless > 0 %}
+        <div class="team-legend-item">
+          <span class="legend-dot" style="background:var(--surface2);border:1px solid var(--border2);"></span>
+          No team <span style="color:var(--warning);font-weight:600;">{{ teamless }}</span>
+        </div>
+        {% endif %}
+      </div>
     {% else %}
       <p style="font-size:0.84rem;color:var(--muted);">No teams have members yet.</p>
     {% endif %}
@@ -119,22 +199,19 @@
 </div>
 
 {% if is_admin %}
-<!-- Recent activity (admin only) -->
 <div class="card">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-    <h2 style="margin:0;">Recent activity</h2>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+    <h2 style="margin:0;">Latest activity</h2>
     <a href="/audit" style="font-size:0.76rem;color:var(--teal);">Full audit log →</a>
   </div>
   {% if recent_audit %}
     {% for e in recent_audit %}
     <div class="audit-row">
-      <span style="color:var(--text-strong);font-weight:600;">{{ e.actor }}</span>
+      <span style="color:var(--text-strong);font-weight:600;">{{ e.actor | split(pat="@") | first }}</span>
       <span style="color:var(--muted);">{{ e.action | replace(from="_", to=" ") }}</span>
-      {% if e.target_user %}<span style="color:var(--teal);">{{ e.target_user }}</span>{% endif %}
-      <span class="ts" style="color:var(--muted2);font-size:0.74rem;margin-left:4px;">{{ e.timestamp }}</span>
-      {% if e.outcome != "success" %}
-        <span class="pill pill-red" style="margin-left:6px;">failed</span>
-      {% endif %}
+      {% if e.target_user %}<span style="color:var(--teal);">{{ e.target_user | split(pat="@") | first }}</span>{% endif %}
+      {% if e.outcome != "success" %}<span class="pill pill-red">failed</span>{% endif %}
+      <span class="ts" style="color:var(--muted2);font-size:0.73rem;margin-left:auto;flex-shrink:0;">{{ e.timestamp }}</span>
     </div>
     {% endfor %}
   {% else %}

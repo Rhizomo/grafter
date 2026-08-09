@@ -181,12 +181,18 @@
         <div class="field">
           <label>New password</label>
           <div style="position:relative;">
-            <input type="password" id="set-pw-input" name="password" autocomplete="new-password" required style="width:100%;padding-right:40px;">
+            <input type="password" id="set-pw-input" name="password" autocomplete="new-password" required style="width:100%;padding-right:86px;">
+            <span id="set-pw-toast" class="pw-copy-toast">Copied!</span>
             <button type="button" id="toggle-set-pw" tabindex="-1" aria-label="Show password"
                     style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;padding:0;line-height:1;display:flex;align-items:center;">
               <svg id="set-pw-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             </button>
+            <button type="button" id="set-gen-pw" class="pw-gen-btn" style="right:34px;" title="Generate password">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+              Gen
+            </button>
           </div>
+          <p id="set-pw-strength" style="font-size:0.68rem;color:var(--muted2);margin-top:4px;letter-spacing:0;text-transform:none;font-weight:400;min-height:1em;"></p>
         </div>
         <div class="field" style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
           <input type="checkbox" name="temporary" id="pw-temporary" checked>
@@ -374,6 +380,28 @@
       var show = inp.type === 'password';
       inp.type = show ? 'text' : 'password';
       icon.innerHTML = show ? eyeShut : eyeOpen;
+    });
+
+    // Same generator as the create-user form: 16 chars, ambiguous glyphs
+    // excluded, copied to the clipboard so it can be handed over directly.
+    var gen = document.getElementById('set-gen-pw');
+    var toast = document.getElementById('set-pw-toast');
+    var strength = document.getElementById('set-pw-strength');
+    if (gen && inp) gen.addEventListener('click', function() {
+      var chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%';
+      var arr = new Uint8Array(16);
+      window.crypto.getRandomValues(arr);
+      var pw = Array.from(arr).map(function(b) { return chars[b % chars.length]; }).join('');
+      inp.value = pw;
+      inp.type = 'text';
+      if (icon) icon.innerHTML = eyeShut;
+      if (strength) strength.textContent = '16 chars · mixed case · symbols';
+      navigator.clipboard.writeText(pw).then(function() {
+        if (toast) {
+          toast.style.opacity = '1';
+          setTimeout(function() { toast.style.opacity = '0'; }, 1800);
+        }
+      }).catch(function() {});
     });
   })();
 </script>

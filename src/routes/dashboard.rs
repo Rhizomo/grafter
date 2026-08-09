@@ -23,6 +23,24 @@ pub fn router() -> Router<AppState> {
 struct TeamCount {
     name: String,
     count: usize,
+    pct: f64,
+    color: &'static str,
+}
+
+// Percentages and segment colours are computed here rather than in the
+// template so the view can't divide by zero on an empty realm or depend on
+// fragile expression support.
+const TEAM_COLORS: &[&str] = &[
+    "#00bfa5", "#00e676", "#64b5f6", "#ffb74d", "#ff8a65",
+    "#ba68c8", "#4db6ac", "#aed581", "#7986cb", "#f06292",
+];
+
+fn pct_of(count: usize, total: usize) -> f64 {
+    if total == 0 {
+        0.0
+    } else {
+        (count as f64) * 100.0 / (total as f64)
+    }
 }
 
 #[derive(Serialize)]
@@ -83,13 +101,18 @@ async fn dashboard(
     let team_groups = load_team_groups(&state, &realm).await?;
     let mut teams: Vec<TeamCount> = team_groups
         .iter()
-        .map(|g| TeamCount {
-            name: g.name.clone(),
-            count: users.iter().filter(|u| u.team() == Some(g.name.as_str())).count(),
+        .map(|g| {
+            let count = users.iter().filter(|u| u.team() == Some(g.name.as_str())).count();
+            TeamCount { name: g.name.clone(), count, pct: pct_of(count, total), color: "" }
         })
         .filter(|t| t.count > 0)
         .collect();
     teams.sort_by(|a, b| b.count.cmp(&a.count));
+    for (i, t) in teams.iter_mut().enumerate() {
+        t.color = TEAM_COLORS[i % TEAM_COLORS.len()];
+    }
+
+    let teamless = total.saturating_sub(teams.iter().map(|t| t.count).sum::<usize>());
 
     // Request states. An operator only ever sees their own proposals, matching
     // what the changes queue shows them.
@@ -122,6 +145,10 @@ async fn dashboard(
     ctx.insert("total_users", &total);
     ctx.insert("active_users", &active);
     ctx.insert("disabled_users", &disabled);
+    ctx.insert("active_pct", &pct_of(active, total));
+    ctx.insert("disabled_pct", &pct_of(disabled, total));
+    ctx.insert("teamless", &teamless);
+    ctx.insert("teamless_pct", &pct_of(teamless, total));
     ctx.insert("attention", &attention);
     ctx.insert("attention_total", &attention_total);
     ctx.insert("teams", &teams);
@@ -137,4 +164,94 @@ async fn dashboard(
         .map_err(|e| AppError::Internal(e.into()))?;
 
     Ok(Html(html))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::storage::{AuditEntry, AuditOutcome};
+    use chrono::Utc;
+
+    // Tera reports missing fields and bad filter usage at render time, not
+    // when templates are parsed at boot — so exercise an actual render of the
+    // most data-heavy page for both roles.
+    fn render_with(is_admin: bool, total: usize, attention_total: usize) -> Result<String, tera::Error> {
+        let tera = tera::Tera::new("templates/**/*.html").expect("templates should parse");
+
+        let mut ctx = tera::Context::new();
+        ctx.insert("user", &serde_json::json!({ "username": "someone@smartech.ir", "role": "admin" }));
+        ctx.insert("is_admin", &is_admin);
+        ctx.insert("active_tab", "dashboard");
+        ctx.insert("realm", "smartech");
+        ctx.insert("total_users", &total);
+        ctx.insert("active_users", &total);
+        ctx.insert("disabled_users", &0usize);
+        ctx.insert("active_pct", &pct_of(total, total));
+        ctx.insert("disabled_pct", &0.0f64);
+        ctx.insert("teamless", &1usize);
+        ctx.insert("teamless_pct", &pct_of(1, total.max(1)));
+        // Mirrors the route: the list is empty exactly when the total is zero.
+        let attention: Vec<AttentionUser> = if attention_total == 0 {
+            Vec::new()
+        } else {
+            vec![AttentionUser {
+                id: "u1".into(), realm: "smartech".into(),
+                username: "a@smartech.ir".into(), full_name: "A Person".into(),
+                reason: "No team assigned",
+            }]
+        };
+        ctx.insert("attention", &attention);
+        ctx.insert("attention_total", &attention_total);
+        ctx.insert("teams", &vec![TeamCount {
+            name: "devops".into(), count: 3, pct: 50.0, color: "#00bfa5",
+        }]);
+        ctx.insert("req_pending", &1usize);
+        ctx.insert("req_approved", &2usize);
+        ctx.insert("req_rejected", &0usize);
+        ctx.insert("recent_audit", &vec![
+            AuditEntry {
+                id: "a1".into(), timestamp: Utc::now(), actor: "admin@smartech.ir".into(),
+                action: "assign_role".into(), target_realm: "smartech".into(),
+                target_user: Some("b@smartech.ir".into()), detail: "ok".into(),
+                outcome: AuditOutcome::Success,
+            },
+            // A failure entry must render too — its outcome serialises as an
+            // object rather than a plain string.
+            AuditEntry {
+                id: "a2".into(), timestamp: Utc::now(), actor: "SYSTEM".into(),
+                action: "emergency_promote".into(), target_realm: "smartech".into(),
+                target_user: None, detail: "boom".into(),
+                outcome: AuditOutcome::Failure("boom".into()),
+            },
+        ]);
+        ctx.insert("pending_count", &1usize);
+
+        tera.render("dashboard.html", &ctx)
+    }
+
+    #[test]
+    fn renders_for_admin() {
+        let html = render_with(true, 6, 1).expect("admin dashboard should render");
+        assert!(html.contains("Latest activity"), "admin should see the activity feed");
+        assert!(html.contains("failed"), "a failed audit entry should be marked");
+    }
+
+    #[test]
+    fn renders_for_operator_without_activity_feed() {
+        let html = render_with(false, 6, 1).expect("operator dashboard should render");
+        assert!(!html.contains("Latest activity"), "operators must not see the activity feed");
+    }
+
+    // An empty realm previously risked a divide-by-zero in the template.
+    #[test]
+    fn renders_with_no_users_and_nothing_to_fix() {
+        let html = render_with(true, 0, 0).expect("empty dashboard should render");
+        assert!(html.contains("Nothing to clean up."));
+    }
+
+    #[test]
+    fn pct_of_is_zero_when_total_is_zero() {
+        assert_eq!(pct_of(0, 0), 0.0);
+        assert_eq!(pct_of(1, 4), 25.0);
+    }
 }
