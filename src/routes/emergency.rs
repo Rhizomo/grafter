@@ -113,8 +113,13 @@ pub async fn emergency_promote(
     };
 
     // Assign
-    if let Err(e) = state.provider.assign_realm_role(&realm, &target.id, &admin_role).await {
+    let assign_result = state.provider.assign_realm_role(&realm, &target.id, &admin_role).await;
+    if let Err(ref e) = assign_result {
         tracing::error!(%ip, error = %e, "emergency promote: assign role error");
+    }
+    if crate::routes::audit_failure(
+        &state, assign_result, "SYSTEM", "emergency_promote", &realm, Some(&body.username),
+    ).await.is_err() {
         return err("role assignment failed");
     }
 

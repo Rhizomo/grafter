@@ -9,11 +9,14 @@ pub mod teams;
 pub mod users;
 
 use axum::{routing::get, Router};
+use chrono::Utc;
 use tower_sessions::Session;
+use uuid::Uuid;
 
 use crate::{
     error::AppError,
     session::{Role, SessionUser, SESSION_KEY},
+    storage::{AuditEntry, AuditOutcome},
     AppState,
 };
 
@@ -36,6 +39,35 @@ pub async fn pending_changes_count(state: &crate::AppState) -> usize {
     state.storage.list_pending_changes().await.ok()
         .map(|cs| cs.len())
         .unwrap_or(0)
+}
+
+// Records a failed attempt at a privileged action (role grant/revoke,
+// password reset, approving a queued change, break-glass promotion) to the
+// audit trail before the error is returned to the caller. Without this,
+// the audit log only ever shows successes — a rejected or failed attempt at
+// something sensitive left no trace at all. Best-effort: if the audit write
+// itself fails, the original error still propagates rather than being lost.
+pub async fn audit_failure<T, E: std::fmt::Display>(
+    state: &AppState,
+    result: Result<T, E>,
+    actor: &str,
+    action: &str,
+    realm: &str,
+    target_user: Option<&str>,
+) -> Result<T, E> {
+    if let Err(ref e) = result {
+        let _ = state.storage.append_audit(&AuditEntry {
+            id: Uuid::new_v4().to_string(),
+            timestamp: Utc::now(),
+            actor: actor.to_string(),
+            action: action.to_string(),
+            target_realm: realm.to_string(),
+            target_user: target_user.map(str::to_string),
+            detail: e.to_string(),
+            outcome: AuditOutcome::Failure(e.to_string()),
+        }).await;
+    }
+    result
 }
 
 // Re-checks the session's role against Keycloak on every call, using the

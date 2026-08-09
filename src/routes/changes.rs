@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     response::{Html, IntoResponse, Redirect},
     routing::{get, post},
     Form, Router,
@@ -59,9 +59,15 @@ pub fn router() -> Router<AppState> {
         .route("/changes/:id/cancel", post(cancel))
 }
 
+#[derive(Deserialize)]
+struct ChangesQuery {
+    page: Option<usize>,
+}
+
 async fn list_changes(
     State(state): State<AppState>,
     session: Session,
+    Query(q): Query<ChangesQuery>,
 ) -> Result<impl IntoResponse, AppError> {
     let mut current_user = require_session(&session, &state).await?;
 
@@ -99,7 +105,15 @@ async fn list_changes(
             .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?;
     }
 
-    changes.truncate(CHANGES_PAGE_LIMIT);
+    // Real pagination (not just a cap) — older history stays reachable via
+    // ?page=N instead of silently vanishing past CHANGES_PAGE_LIMIT. Each
+    // page is a full, self-contained render so the client-side status-tab
+    // filter still works within it.
+    let total_pages = changes.len().div_ceil(CHANGES_PAGE_LIMIT).max(1);
+    let page = q.page.unwrap_or(0).min(total_pages - 1);
+    let start = page * CHANGES_PAGE_LIMIT;
+    let end = (start + CHANGES_PAGE_LIMIT).min(changes.len());
+    changes = changes[start..end].to_vec();
 
     let csrf = new_csrf_token();
     session
@@ -135,6 +149,8 @@ async fn list_changes(
     ctx.insert("changes", &changes_view);
     ctx.insert("pending_count", &pending_count);
     ctx.insert("unseen_resolved_count", &unseen_resolved_count);
+    ctx.insert("page", &page);
+    ctx.insert("total_pages", &total_pages);
     ctx.insert("csrf", &csrf);
     ctx.insert("flash", &flash);
 
@@ -202,13 +218,17 @@ async fn approve(
         return Ok(Redirect::to("/changes"));
     }
 
-    crate::service::changes::apply_change_diff(
-        &*state.provider,
-        &change.realm,
-        &change.user_id,
-        &change.diff,
-    )
-    .await?;
+    crate::routes::audit_failure(
+        &state,
+        crate::service::changes::apply_change_diff(
+            &*state.provider,
+            &change.realm,
+            &change.user_id,
+            &change.diff,
+        )
+        .await,
+        &current_user.username, "approve_change", &change.realm, Some(&change.username),
+    ).await?;
     let redirect_to = "/changes".to_string();
 
     change.status = ChangeStatus::Approved;

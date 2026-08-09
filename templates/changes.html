@@ -153,6 +153,17 @@
 <div id="changes-empty-filter" style="display:none;padding:64px 0;text-align:center;">
   <p style="font-size:0.9rem;font-weight:500;color:var(--text-strong);">No changes with this status.</p>
 </div>
+{% if total_pages > 1 %}
+<div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-top:16px;font-size:0.82rem;color:var(--muted);">
+  {% if page > 0 %}
+    <a href="/changes?page={{ page - 1 }}" class="btn btn-ghost btn-sm">← Newer</a>
+  {% endif %}
+  <span>Page {{ page + 1 }} of {{ total_pages }}</span>
+  {% if page + 1 < total_pages %}
+    <a href="/changes?page={{ page + 1 }}" class="btn btn-ghost btn-sm">Older →</a>
+  {% endif %}
+</div>
+{% endif %}
 {% endif %}
 
 <!-- Reject modal -->

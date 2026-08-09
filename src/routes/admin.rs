@@ -155,7 +155,11 @@ async fn grant_access(
     let role = roles.into_iter().find(|r| r.name == *role_name)
         .ok_or_else(|| AppError::NotFound(format!("role {role_name}")))?;
 
-    state.provider.assign_realm_role(&form.realm, &target.id, &role).await?;
+    crate::routes::audit_failure(
+        &state,
+        state.provider.assign_realm_role(&form.realm, &target.id, &role).await,
+        &current_user.username, "grant_access", &form.realm, Some(&form.username),
+    ).await?;
 
     state.storage.append_audit(&AuditEntry {
         id: Uuid::new_v4().to_string(), timestamp: Utc::now(),
@@ -216,7 +220,11 @@ async fn revoke_access(
             description: None, client_role: false,
         }
     };
-    state.provider.remove_realm_role(&form.realm, &form.user_id, &role).await?;
+    crate::routes::audit_failure(
+        &state,
+        state.provider.remove_realm_role(&form.realm, &form.user_id, &role).await,
+        &current_user.username, "revoke_access", &form.realm, Some(&form.username),
+    ).await?;
 
     state.storage.append_audit(&AuditEntry {
         id: Uuid::new_v4().to_string(), timestamp: Utc::now(),

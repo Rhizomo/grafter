@@ -91,7 +91,10 @@ async fn list_users(
         .clone()
         .unwrap_or_else(|| realms.first().map(|r| r.name.clone()).unwrap_or_default());
 
-    let mut lq = ListUsersQuery::new().page(0, 500);
+    // Users list has no pagination UI — it assumes every user in the realm
+    // fits in one page and filters client-side. 2000 gives real headroom
+    // over the current ~163 users without needing that UI yet.
+    let mut lq = ListUsersQuery::new().page(0, 2000);
     if let Some(ref s) = q.search {
         lq = lq.search(s);
     }
@@ -693,7 +696,11 @@ async fn assign_role(
         .find(|r| r.id == form.role_id)
         .ok_or_else(|| AppError::NotFound(format!("role {}", form.role_id)))?;
 
-    state.provider.assign_realm_role(&realm, &user_id, &role).await?;
+    crate::routes::audit_failure(
+        &state,
+        state.provider.assign_realm_role(&realm, &user_id, &role).await,
+        &current_user.username, "assign_role", &realm, Some(&user_id),
+    ).await?;
 
     state.storage.append_audit(&AuditEntry {
         id: Uuid::new_v4().to_string(), timestamp: Utc::now(),
@@ -737,7 +744,11 @@ async fn remove_role(
         client_role: false,
     };
 
-    state.provider.remove_realm_role(&realm, &user_id, &role).await?;
+    crate::routes::audit_failure(
+        &state,
+        state.provider.remove_realm_role(&realm, &user_id, &role).await,
+        &current_user.username, "remove_role", &realm, Some(&user_id),
+    ).await?;
 
     state.storage.append_audit(&AuditEntry {
         id: Uuid::new_v4().to_string(), timestamp: Utc::now(),
@@ -781,7 +792,11 @@ async fn set_user_password(
     }
 
     let temporary = form.temporary.as_deref() == Some("on");
-    state.provider.set_user_password(&realm, &id, &form.password, temporary).await?;
+    crate::routes::audit_failure(
+        &state,
+        state.provider.set_user_password(&realm, &id, &form.password, temporary).await,
+        &current_user.username, "set_password", &realm, Some(&id),
+    ).await?;
 
     let user = state.provider.get_user(&realm, &id).await?;
     let label = if temporary { "temporary password" } else { "password" };

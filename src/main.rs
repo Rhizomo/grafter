@@ -6,6 +6,8 @@ mod routes;
 mod service;
 mod session;
 mod storage;
+#[cfg(test)]
+mod test_support;
 
 use anyhow::Result;
 use axum::{
