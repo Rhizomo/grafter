@@ -42,7 +42,7 @@
 
 <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px;">
 
-  <!-- Left column: Account form + Password -->
+  <!-- Left column: the account itself, and the destructive action on it -->
   <div>
     <div class="card">
       <h2>Account</h2>
@@ -88,8 +88,8 @@
           </select>
         </div>
 
-        <!-- Contact & HR divider -->
-        <div style="font-size:0.65rem;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:1px;margin:6px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--border);">Contact &amp; HR</div>
+        <!-- Contact divider -->
+        <div style="font-size:0.65rem;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:1px;margin:6px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--border);">Contact</div>
 
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 14px;">
           <div class="field">
@@ -134,36 +134,7 @@
     </div>
 
 
-    <!-- Password (admin only) -->
     {% if is_admin %}
-    <div class="card" style="margin-top:0;">
-      <h2>Set password</h2>
-      <form method="post" action="/users/{{ realm }}/{{ subject.id }}/set-password">
-        <input type="hidden" name="csrf_token" value="{{ csrf }}">
-        <div class="field">
-          <label>New password</label>
-          <div style="position:relative;">
-            <input type="password" id="set-pw-input" name="password" autocomplete="new-password" required style="width:100%;padding-right:86px;">
-            <span id="set-pw-toast" class="pw-copy-toast">Copied!</span>
-            <button type="button" id="toggle-set-pw" tabindex="-1" aria-label="Show password"
-                    style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;padding:0;line-height:1;display:flex;align-items:center;">
-              <svg id="set-pw-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-            </button>
-            <button type="button" id="set-gen-pw" class="pw-gen-btn" style="right:34px;" title="Generate password">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-              Gen
-            </button>
-          </div>
-          <p id="set-pw-strength" style="font-size:0.68rem;color:var(--muted2);margin-top:4px;letter-spacing:0;text-transform:none;font-weight:400;min-height:1em;"></p>
-        </div>
-        <div class="field" style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
-          <input type="checkbox" name="temporary" id="pw-temporary" checked>
-          <label for="pw-temporary" style="margin:0; color:var(--text); text-transform:none; letter-spacing:0; font-weight:400; font-size:0.875rem;">Temporary — user must change on next login</label>
-        </div>
-        <button type="submit" class="btn btn-ghost">Set password</button>
-      </form>
-    </div>
-
     <!-- Danger zone (admin only) — irreversible, so it's visually separated
          from the routine account controls above. -->
     <div class="card" style="margin-top:0; border-color:rgba(255,82,82,0.3);">
@@ -177,7 +148,7 @@
     {% endif %}
   </div>
 
-  <!-- Right column: Roles & Groups -->
+  <!-- Right column: access, context and credentials -->
   <div>
     <div class="card">
       <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
@@ -295,6 +266,37 @@
         });
       })();
     </script>
+
+    {% if is_admin %}
+    <!-- Password (admin only) -->
+    <div class="card" style="margin-top:0;">
+      <h2>Set password</h2>
+      <form method="post" action="/users/{{ realm }}/{{ subject.id }}/set-password">
+        <input type="hidden" name="csrf_token" value="{{ csrf }}">
+        <div class="field">
+          <label>New password</label>
+          <div style="position:relative;">
+            <input type="password" id="set-pw-input" name="password" autocomplete="new-password" required style="width:100%;padding-right:86px;">
+            <span id="set-pw-toast" class="pw-copy-toast">Copied!</span>
+            <button type="button" id="toggle-set-pw" tabindex="-1" aria-label="Show password"
+                    style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;padding:0;line-height:1;display:flex;align-items:center;">
+              <svg id="set-pw-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+            <button type="button" id="set-gen-pw" class="pw-gen-btn" style="right:34px;" title="Generate password">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+              Gen
+            </button>
+          </div>
+          <p id="set-pw-strength" style="font-size:0.68rem;color:var(--muted2);margin-top:4px;letter-spacing:0;text-transform:none;font-weight:400;min-height:1em;"></p>
+        </div>
+        <div class="field" style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+          <input type="checkbox" name="temporary" id="pw-temporary" checked>
+          <label for="pw-temporary" style="margin:0; color:var(--text); text-transform:none; letter-spacing:0; font-weight:400; font-size:0.875rem;">Temporary — user must change on next login</label>
+        </div>
+        <button type="submit" class="btn btn-ghost">Set password</button>
+      </form>
+    </div>
+    {% endif %}
   </div>
 </div>
 
