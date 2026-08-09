@@ -133,44 +133,6 @@
       </script>
     </div>
 
-    <!-- Notes: an HR-facing surface, so it's open by default for operators
-         and tucked behind a toggle for admins who don't need it every visit. -->
-    <div class="card" style="margin-top:0;">
-      <div style="display:flex;align-items:center;justify-content:space-between;">
-        <h2 style="margin:0;">Notes</h2>
-        <button type="button" id="toggle-notes" class="btn btn-ghost btn-sm">
-          {% if is_admin %}Show{% else %}Hide{% endif %}
-        </button>
-      </div>
-      <div id="notes-body" style="{% if is_admin %}display:none;{% endif %}margin-top:14px;">
-        <form method="post" action="/users/{{ realm }}/{{ subject.id }}/notes">
-          <input type="hidden" name="csrf_token" value="{{ csrf }}">
-          <div class="field">
-            <textarea name="notes" rows="5" placeholder="Context for whoever looks at this account next — role changes, leave, onboarding steps."
-                      style="width:100%;min-height:96px;resize:vertical;font-size:0.84rem;line-height:1.55;">{{ meta.notes | default(value='') }}</textarea>
-          </div>
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
-            <button type="submit" class="btn btn-teal btn-sm">Save notes</button>
-            {% if meta.updated_by %}
-              <span style="font-size:0.72rem;color:var(--muted2);">
-                Last edited by {{ meta.updated_by }} <span class="ts">{{ meta.updated_at }}</span>
-              </span>
-            {% endif %}
-          </div>
-        </form>
-      </div>
-    </div>
-    <script>
-      (function() {
-        var btn = document.getElementById('toggle-notes');
-        var body = document.getElementById('notes-body');
-        btn.addEventListener('click', function() {
-          var hidden = body.style.display === 'none';
-          body.style.display = hidden ? '' : 'none';
-          btn.textContent = hidden ? 'Hide' : 'Show';
-        });
-      })();
-    </script>
 
     <!-- Password (admin only) -->
     {% if is_admin %}
@@ -294,6 +256,45 @@
         <p style="color:var(--muted); font-size:0.84rem;">No groups.</p>
       {% endif %}
     </div>
+
+    <!-- Notes: an HR-facing surface, so it's open by default for operators
+         and tucked behind a toggle for admins who don't need it every visit. -->
+    <div class="card" style="margin-top:0;">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <h2 style="margin:0;">Notes</h2>
+        <button type="button" id="toggle-notes" class="btn btn-ghost btn-sm">
+          {% if is_admin %}Show{% else %}Hide{% endif %}
+        </button>
+      </div>
+      <div id="notes-body" style="{% if is_admin %}display:none;{% endif %}margin-top:14px;">
+        <form method="post" action="/users/{{ realm }}/{{ subject.id }}/notes">
+          <input type="hidden" name="csrf_token" value="{{ csrf }}">
+          <div class="field">
+            <textarea name="notes" rows="5" placeholder="Context for whoever looks at this account next — role changes, leave, onboarding steps."
+                      style="width:100%;min-height:96px;resize:vertical;font-size:0.84rem;line-height:1.55;">{{ meta.notes | default(value='') }}</textarea>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+            <button type="submit" class="btn btn-teal btn-sm">Save notes</button>
+            {% if meta.updated_by %}
+              <span style="font-size:0.72rem;color:var(--muted2);">
+                Last edited by {{ meta.updated_by }} <span class="ts">{{ meta.updated_at }}</span>
+              </span>
+            {% endif %}
+          </div>
+        </form>
+      </div>
+    </div>
+    <script>
+      (function() {
+        var btn = document.getElementById('toggle-notes');
+        var body = document.getElementById('notes-body');
+        btn.addEventListener('click', function() {
+          var hidden = body.style.display === 'none';
+          body.style.display = hidden ? '' : 'none';
+          btn.textContent = hidden ? 'Hide' : 'Show';
+        });
+      })();
+    </script>
   </div>
 </div>
 

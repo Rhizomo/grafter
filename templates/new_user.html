@@ -23,6 +23,11 @@
     transition: color 0.15s;
   }
   .pw-gen-btn:hover { color: var(--teal); }
+  /* Two columns inside the card: a single stacked column made this form
+     taller than the viewport while the page still had width to spare. */
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 26px; align-items: start; }
+  .form-grid > div { min-width: 0; }
+  @media (max-width: 1100px) { .form-grid { grid-template-columns: 1fr; } }
   .pw-copy-toast {
     position: absolute; right: 0; bottom: calc(100% + 8px);
     background: var(--surface2); border: 1px solid var(--teal);
@@ -46,7 +51,7 @@
 </div>
 {% endif %}
 
-<div style="display:grid;grid-template-columns:1fr 300px;gap:28px;align-items:start;max-width:900px;">
+<div style="display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:26px;align-items:start;max-width:1180px;">
   <div class="card">
     <form method="post" action="/users/new">
       <input type="hidden" name="csrf_token" value="{{ csrf }}">
@@ -62,11 +67,13 @@
           {% endfor %}
         </select>
       </div>
-      <div class="form-section-label">Identity</div>
       {% else %}
       <input type="hidden" name="realm" value="{{ current_realm }}">
-      <div class="form-section-label" style="padding-top:0;">Identity</div>
       {% endif %}
+
+      <div class="form-grid">
+      <div>
+      <div class="form-section-label" style="padding-top:0;">Identity</div>
 
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 14px;">
         <div class="field">
@@ -111,7 +118,10 @@
         </div>
       </div>
 
-      <div class="form-section-label">Access</div>
+      </div>
+
+      <div>
+      <div class="form-section-label" style="padding-top:0;">Access</div>
 
       <div class="field">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
@@ -152,12 +162,14 @@
         <label for="password_temporary" style="margin:0; color:var(--text); text-transform:none; letter-spacing:0; font-weight:400; font-size:0.875rem;">User must change on next login</label>
       </div>
 
-      <div class="field" style="display:flex; align-items:center; gap:10px; margin-bottom:24px;">
+      <div class="field" style="display:flex; align-items:center; gap:10px; margin-bottom:0;">
         <input type="checkbox" name="enabled" id="enabled" checked>
         <label for="enabled" style="margin:0; color:var(--text); text-transform:none; letter-spacing:0; font-weight:400; font-size:0.875rem;">Account enabled</label>
       </div>
+      </div>
+      </div>
 
-      <div style="display:flex; gap:10px; align-items:center;">
+      <div style="display:flex; gap:10px; align-items:center; margin-top:24px; padding-top:20px; border-top:1px solid var(--border);">
         <button type="submit" class="btn btn-primary">Create user</button>
         <a href="/users?realm={{ current_realm }}" class="btn btn-ghost">Cancel</a>
       </div>
