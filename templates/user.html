@@ -40,7 +40,16 @@
 </div>
 {% endif %}
 
-<div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+<style>
+  /* Both columns stretch to the taller one, and each column's last card
+     absorbs the slack so the two sides finish level instead of one
+     trailing off with dead space beneath it. */
+  .user-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: stretch; }
+  .user-cols > div { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+  .user-cols > div > .card { margin-bottom: 0; }
+  .user-cols > div > .card:last-of-type { flex: 1; }
+</style>
+<div class="user-cols">
 
   <!-- Left column: the account itself, and the destructive action on it -->
   <div>
@@ -158,17 +167,17 @@
       {% if roles %}
         <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:{% if is_admin and available_roles %}14px{% else %}0{% endif %};">
           {% for r in roles %}
-            <div style="display:flex; align-items:center; gap:4px;">
-              <span class="pill pill-teal">{{ r.name }}</span>
-              {% if is_admin %}
-              <form method="post" action="/users/{{ realm }}/{{ subject.id }}/roles/remove" style="display:inline;">
-                <input type="hidden" name="csrf_token" value="{{ csrf }}">
-                <input type="hidden" name="role_id" value="{{ r.id }}">
-                <input type="hidden" name="role_name" value="{{ r.name }}">
-                <button type="submit" title="Remove role" class="remove-btn">✕</button>
-              </form>
-              {% endif %}
-            </div>
+            {% if is_admin %}
+            <form method="post" action="/users/{{ realm }}/{{ subject.id }}/roles/remove" class="role-chip">
+              <input type="hidden" name="csrf_token" value="{{ csrf }}">
+              <input type="hidden" name="role_id" value="{{ r.id }}">
+              <input type="hidden" name="role_name" value="{{ r.name }}">
+              <span>{{ r.name }}</span>
+              <button type="submit" title="Remove {{ r.name }}" aria-label="Remove {{ r.name }}">✕</button>
+            </form>
+            {% else %}
+            <span class="pill pill-teal">{{ r.name }}</span>
+            {% endif %}
           {% endfor %}
         </div>
       {% else %}

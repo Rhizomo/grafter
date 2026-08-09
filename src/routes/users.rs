@@ -65,6 +65,7 @@ pub fn router() -> Router<AppState> {
         .route("/users", get(list_users))
         .route("/users/check-similar", get(check_similar))
         .route("/users/bulk-edit", post(bulk_edit))
+        .route("/users/bulk-delete", post(bulk_delete))
         .route("/users/new", get(new_user_form).post(create_user))
         .route("/users/:realm/:id", get(user_detail))
         .route("/users/:realm/:id/edit", post(edit_user))
@@ -324,6 +325,93 @@ async fn bulk_edit(
     }
 
     Ok(axum::http::StatusCode::OK)
+}
+
+// ── Bulk delete ───────────────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct BulkDeleteBody {
+    csrf_token: String,
+    confirm: String,
+    users: Vec<BulkUser>,
+}
+
+#[derive(Serialize)]
+struct BulkDeleteResult {
+    deleted: usize,
+    skipped: Vec<String>,
+}
+
+// Admin-only and irreversible across many accounts at once, so it carries the
+// same typed confirmation as the single-user delete plus a self-exclusion.
+// Failures are collected per user rather than aborting the batch: one bad
+// account shouldn't leave the rest in an unknown half-applied state.
+async fn bulk_delete(
+    State(state): State<AppState>,
+    session: Session,
+    Json(body): Json<BulkDeleteBody>,
+) -> Result<impl IntoResponse, AppError> {
+    let current_user = require_admin(&session, &state).await?;
+
+    let session_csrf: String = session
+        .get("csrf")
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?
+        .ok_or(AppError::CsrfMismatch)?;
+    if !csrf_tokens_equal(&body.csrf_token, &session_csrf) {
+        return Err(AppError::CsrfMismatch);
+    }
+
+    // Re-checked server-side: the client's typed confirmation is a usability
+    // guard, not a security one.
+    if body.confirm.trim() != "DELETE" {
+        return Err(AppError::Forbidden);
+    }
+
+    let mut deleted = 0usize;
+    let mut skipped: Vec<String> = Vec::new();
+
+    for u in &body.users {
+        check_realm_access(&state, &current_user, &u.realm)?;
+
+        let target = match state.provider.get_user(&u.realm, &u.id).await {
+            Ok(t) => t,
+            Err(e) => {
+                skipped.push(format!("{}: {e}", u.id));
+                continue;
+            }
+        };
+
+        if target.username == current_user.username {
+            skipped.push(format!("{} (your own account)", target.username));
+            continue;
+        }
+
+        match state.provider.delete_user(&u.realm, &u.id).await {
+            Ok(()) => {
+                deleted += 1;
+                let _ = state.storage.append_audit(&AuditEntry {
+                    id: Uuid::new_v4().to_string(), timestamp: Utc::now(),
+                    actor: current_user.username.clone(), action: "delete_user".into(),
+                    target_realm: u.realm.clone(), target_user: Some(target.username.clone()),
+                    detail: "user permanently deleted (bulk)".into(),
+                    outcome: AuditOutcome::Success,
+                }).await;
+            }
+            Err(e) => {
+                skipped.push(format!("{}: {e}", target.username));
+                let _ = state.storage.append_audit(&AuditEntry {
+                    id: Uuid::new_v4().to_string(), timestamp: Utc::now(),
+                    actor: current_user.username.clone(), action: "delete_user".into(),
+                    target_realm: u.realm.clone(), target_user: Some(target.username.clone()),
+                    detail: e.to_string(),
+                    outcome: AuditOutcome::Failure(e.to_string()),
+                }).await;
+            }
+        }
+    }
+
+    Ok(Json(BulkDeleteResult { deleted, skipped }))
 }
 
 // ── User detail ───────────────────────────────────────────────────────────────

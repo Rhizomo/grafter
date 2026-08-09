@@ -359,6 +359,28 @@
     .remove-btn { background: none; border: none; color: var(--muted); cursor: pointer; padding: 0 2px; font-size: 0.9rem; line-height: 1; margin-left: 3px; transition: color 0.15s; }
     .remove-btn:hover, .remove-btn:focus-visible { color: var(--danger); }
 
+    /* A role and its remove control as one chip. Previously the ✕ floated
+       outside the pill as a separate element, which read as clutter. */
+    .role-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 2px 6px 2px 10px; border-radius: 99px;
+      font-size: 0.74rem; font-weight: 500;
+      color: var(--teal); border: 1px solid rgba(0,191,165,0.3);
+      background: var(--teal-glow);
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .role-chip:hover { border-color: rgba(0,191,165,0.55); }
+    .role-chip button {
+      background: none; border: none; cursor: pointer; padding: 0;
+      color: var(--muted); font-size: 0.72rem; line-height: 1;
+      width: 15px; height: 15px; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      transition: color 0.14s, background 0.14s;
+    }
+    .role-chip button:hover, .role-chip button:focus-visible {
+      color: var(--danger); background: var(--danger-glow);
+    }
+
     /* ── Empty state ─────────────────────────────────────────────────── */
     .empty-state td { padding: 64px 20px !important; text-align: center; }
     .empty-icon  { color: var(--muted2); margin-bottom: 14px; display: block; }

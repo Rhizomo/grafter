@@ -96,8 +96,36 @@
     </select>
     <button class="btn btn-teal btn-sm" id="bulk-team-btn">{% if is_admin %}Set team{% else %}Propose team{% endif %}</button>
   </div>
+  {% if is_admin %}
+  <div style="border-left:1px solid var(--border); padding-left:10px;">
+    <button class="btn btn-danger btn-sm" onclick="openBulkDelete()">Delete…</button>
+  </div>
+  {% endif %}
   <button class="btn btn-ghost btn-sm" style="margin-left:auto;" onclick="clearSelection()">Cancel</button>
 </div>
+
+{% if is_admin %}
+<!-- Bulk delete confirmation: lists exactly what is about to go, and the
+     button stays inert until DELETE is typed. Server re-checks both. -->
+<div id="bulk-delete-overlay" style="display:none; position:fixed; inset:0; background:rgba(6,14,13,0.75); backdrop-filter:blur(6px); z-index:100; align-items:center; justify-content:center;">
+  <div class="card" style="width:100%; max-width:480px; margin:20px; border-color:rgba(255,82,82,0.35);">
+    <h2 style="color:var(--danger); font-size:1rem; text-transform:none; letter-spacing:0;">Delete <span id="bd-count"></span> permanently?</h2>
+    <p style="font-size:0.82rem; color:var(--muted); line-height:1.6; margin:8px 0 12px;">
+      This removes the accounts from Keycloak. It cannot be undone.
+    </p>
+    <div id="bd-active-warning" style="display:none; font-size:0.79rem; color:var(--warning); background:rgba(255,183,77,0.08); border:1px solid rgba(255,183,77,0.3); border-radius:var(--radius); padding:8px 12px; margin-bottom:12px;"></div>
+    <ul id="bd-list" style="list-style:none; max-height:190px; overflow-y:auto; font-size:0.8rem; color:var(--text); border:1px solid var(--border); border-radius:var(--radius); padding:8px 12px; margin-bottom:14px;"></ul>
+    <div class="field">
+      <label for="bd-confirm">Type <code style="color:var(--danger);">DELETE</code> to confirm</label>
+      <input type="text" id="bd-confirm" autocomplete="off" style="width:100%;">
+    </div>
+    <div style="display:flex; gap:8px; justify-content:flex-end;">
+      <button type="button" class="btn btn-ghost btn-sm" onclick="closeBulkDelete()">Cancel</button>
+      <button type="button" class="btn btn-danger btn-sm" id="bd-go" disabled onclick="runBulkDelete()">Delete permanently</button>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 <!-- Table -->
 <div class="table-meta">
@@ -322,6 +350,78 @@ if (bulkTeamBtn) bulkTeamBtn.addEventListener('click', async function() {
     location.reload();
   } else alert('Failed: ' + await res.text());
 });
+
+// Bulk delete — admin only; the overlay only exists for admins.
+function selectedRows() {
+  return [...document.querySelectorAll('.row-cb:checked')].map(cb => {
+    const tr = cb.closest('tr');
+    return {
+      id: cb.dataset.id,
+      realm: cb.dataset.realm,
+      name: tr.dataset.name.trim() || tr.dataset.username,
+      username: tr.dataset.username,
+      active: tr.dataset.status === 'active'
+    };
+  });
+}
+
+function openBulkDelete() {
+  const overlay = document.getElementById('bulk-delete-overlay');
+  if (!overlay) return;
+  const rows = selectedRows();
+  if (!rows.length) return;
+
+  document.getElementById('bd-count').textContent =
+    rows.length + (rows.length === 1 ? ' account' : ' accounts');
+  document.getElementById('bd-list').innerHTML = rows.map(r =>
+    '<li style="padding:3px 0;">' + r.username +
+    (r.active ? ' <span style="color:var(--warning);font-size:0.73rem;">active</span>' : '') +
+    '</li>').join('');
+
+  // Deleting someone who can still sign in is worth calling out explicitly.
+  const activeCount = rows.filter(r => r.active).length;
+  const warn = document.getElementById('bd-active-warning');
+  if (activeCount > 0) {
+    warn.textContent = activeCount + ' of these can currently sign in. Consider disabling instead of deleting.';
+    warn.style.display = '';
+  } else {
+    warn.style.display = 'none';
+  }
+
+  const input = document.getElementById('bd-confirm');
+  const go = document.getElementById('bd-go');
+  input.value = '';
+  go.disabled = true;
+  input.oninput = () => { go.disabled = input.value.trim() !== 'DELETE'; };
+  graft.showModal(overlay);
+  input.focus();
+}
+
+function closeBulkDelete() {
+  const overlay = document.getElementById('bulk-delete-overlay');
+  if (overlay) graft.hideModal(overlay);
+}
+
+async function runBulkDelete() {
+  const rows = selectedRows();
+  const go = document.getElementById('bd-go');
+  go.disabled = true;
+  const res = await fetch('/users/bulk-delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      csrf_token: CSRF,
+      confirm: document.getElementById('bd-confirm').value.trim(),
+      users: rows.map(r => ({ id: r.id, realm: r.realm }))
+    })
+  });
+  if (!res.ok) { alert('Failed: ' + await res.text()); go.disabled = false; return; }
+  const out = await res.json();
+  if (out.skipped && out.skipped.length) {
+    alert('Deleted ' + out.deleted + '. Skipped:\n' + out.skipped.join('\n'));
+  }
+  location.reload();
+}
 
 // Row click → user detail (ignore clicks on checkboxes)
 document.querySelectorAll('tr[data-row]').forEach(row => {
