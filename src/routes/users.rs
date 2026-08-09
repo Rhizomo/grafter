@@ -15,9 +15,44 @@ use crate::{
     provider::{CreateUser, Group, ListUsersQuery},
     routes::{pending_changes_count, require_admin, require_session},
     session::{Flash, FLASH_KEY},
-    storage::{AuditEntry, AuditOutcome, FieldChange},
+    storage::{AuditEntry, AuditOutcome, ChangeStatus, FieldChange, PendingChange},
     AppState,
 };
+
+// Deletions are recorded in the changes log as an already-resolved entry, so
+// the Changes page is a complete history of what happened to accounts — not
+// just the queue of things awaiting approval. Best-effort: failing to write
+// the history entry must not undo or block a delete that already happened.
+async fn record_deletion(
+    state: &AppState,
+    actor: &str,
+    realm: &str,
+    user_id: &str,
+    username: &str,
+) {
+    let now = Utc::now();
+    let change = PendingChange {
+        id: Uuid::new_v4().to_string(),
+        realm: realm.to_string(),
+        user_id: user_id.to_string(),
+        username: username.to_string(),
+        proposed_by: actor.to_string(),
+        proposed_at: now,
+        status: ChangeStatus::Approved,
+        resolved_by: Some(actor.to_string()),
+        resolved_at: Some(now),
+        reject_reason: None,
+        diff: vec![FieldChange {
+            field: "account".into(),
+            before: Some(username.to_string()),
+            after: "deleted".into(),
+        }],
+        action: "delete_user".into(),
+    };
+    if let Err(e) = state.storage.save_change(&change).await {
+        tracing::warn!(error = %e, username, "failed to record deletion in the changes log");
+    }
+}
 
 // ── Realm helpers ─────────────────────────────────────────────────────────────
 
@@ -390,6 +425,7 @@ async fn bulk_delete(
         match state.provider.delete_user(&u.realm, &u.id).await {
             Ok(()) => {
                 deleted += 1;
+                record_deletion(&state, &current_user.username, &u.realm, &u.id, &target.username).await;
                 let _ = state.storage.append_audit(&AuditEntry {
                     id: Uuid::new_v4().to_string(), timestamp: Utc::now(),
                     actor: current_user.username.clone(), action: "delete_user".into(),
@@ -967,6 +1003,8 @@ async fn delete_user(
         state.provider.delete_user(&realm, &id).await,
         &current_user.username, "delete_user", &realm, Some(&user.username),
     ).await?;
+
+    record_deletion(&state, &current_user.username, &realm, &id, &user.username).await;
 
     state.storage.append_audit(&AuditEntry {
         id: Uuid::new_v4().to_string(), timestamp: Utc::now(),

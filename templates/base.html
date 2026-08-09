@@ -717,6 +717,9 @@
   window.graft = {
     showModal: function(overlay) {
       overlay.style.display = 'flex';
+      // Freeze the page behind the modal: without this the list keeps
+      // scrolling under the dialog, which reads as the page jumping around.
+      document.body.style.overflow = 'hidden';
       var inner = overlay.querySelector('.card, .modal-inner');
       if (inner) {
         inner.classList.remove('modal-entering');
@@ -726,6 +729,12 @@
     },
     hideModal: function(overlay) {
       overlay.style.display = 'none';
+      document.body.style.overflow = '';
+    },
+    // Focusing an element inside a just-shown fixed overlay makes the browser
+    // scroll the page toward it; preventScroll keeps the position put.
+    focusIn: function(el) {
+      if (el) el.focus({ preventScroll: true });
     }
   };
 })();

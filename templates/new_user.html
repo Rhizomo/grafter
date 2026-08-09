@@ -390,7 +390,7 @@ document.getElementById('new_username').addEventListener('blur', function() {
     document.getElementById('open-team-modal').addEventListener('click', function(e) {
       e.preventDefault();
       graft.showModal(modal);
-      document.getElementById('team_name_input').focus();
+      graft.focusIn(document.getElementById('team_name_input'));
     });
     document.getElementById('close-team-modal').addEventListener('click', function() { graft.hideModal(modal); });
     modal.addEventListener('click', function(e) { if (e.target === modal) graft.hideModal(modal); });

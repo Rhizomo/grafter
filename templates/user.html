@@ -361,7 +361,7 @@
       input.value = '';
       btn.disabled = true;
       graft.showModal(modal);
-      input.focus();
+      graft.focusIn(input);
     };
     input.addEventListener('input', function() {
       btn.disabled = input.value.trim() !== input.dataset.expected;
@@ -377,7 +377,7 @@
     if (openBtn) openBtn.addEventListener('click', function(e) {
       e.preventDefault();
       graft.showModal(modal);
-      document.getElementById('team_name_input').focus();
+      graft.focusIn(document.getElementById('team_name_input'));
     });
     document.getElementById('close-team-modal').addEventListener('click', function() { graft.hideModal(modal); });
     modal.addEventListener('click', function(e) { if (e.target === modal) graft.hideModal(modal); });

@@ -394,7 +394,7 @@ function openBulkDelete() {
   go.disabled = true;
   input.oninput = () => { go.disabled = input.value.trim() !== 'DELETE'; };
   graft.showModal(overlay);
-  input.focus();
+  graft.focusIn(input);
 }
 
 function closeBulkDelete() {

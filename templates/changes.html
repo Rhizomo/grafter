@@ -84,8 +84,13 @@
         <td>
           {% if c.action == "create_user" %}
             <span class="pill pill-blue" style="margin-bottom:4px;display:inline-block;">New user</span><br>
+          {% elif c.action == "delete_user" %}
+            <span class="pill pill-red" style="margin-bottom:4px;display:inline-block;">Deleted</span><br>
           {% endif %}
-          {% if c.user_id and c.action != "create_user" or c.status == "approved" and c.user_id %}
+          {# A deleted account has no page left to link to. #}
+          {% if c.action == "delete_user" %}
+            <span style="color:var(--muted);font-weight:600;text-decoration:line-through;">{{ c.username }}</span>
+          {% elif c.user_id and c.action != "create_user" or c.status == "approved" and c.user_id %}
             <a href="/users/{{ c.realm }}/{{ c.user_id }}" class="link-primary">{{ c.username }}</a>
           {% else %}
             <span style="color:var(--text-strong);font-weight:600;">{{ c.username }}</span>
@@ -290,7 +295,7 @@ function openBulkReject() {
 function showRejectModal() {
   document.getElementById('reject-reason').value = '';
   graft.showModal(overlay);
-  setTimeout(() => document.getElementById('reject-reason').focus(), 50);
+  setTimeout(() => graft.focusIn(document.getElementById('reject-reason')), 50);
 }
 
 function closeRejectModal() {

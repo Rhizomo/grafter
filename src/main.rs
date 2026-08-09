@@ -45,6 +45,7 @@ fn humanize_field_filter(
         "phone_number" => "Phone number",
         "personnel_code" => "Personnel code",
         "status_reason" => "Reason",
+        "account" => "Account",
         other => return Ok(tera::Value::String(other.to_string())),
     };
     Ok(tera::Value::String(label.to_string()))
