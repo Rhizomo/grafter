@@ -1,6 +1,11 @@
 # Grafter
 
-Grafter is an internal IAM portal that wraps Keycloak behind a controlled approval flow. Operators propose changes to user accounts — role assignments, team attributes, enabled state — and admins approve or reject them. Every action is audit-logged to object storage. Nothing touches Keycloak directly except the server.
+Grafter is an internal IAM portal that wraps Keycloak behind a controlled approval flow. It is a **devops-operated tool**: the team that owns identity infrastructure uses it to manage user accounts without handing out Keycloak admin consoles.
+
+Two roles exist. **Admins** (`iam-admin`) do everything directly. **Operators** (`iam-operator`) can create accounts and propose changes, but anything that grants or removes access is queued for an admin to approve. Every action — including failures — is audit-logged to object storage. Nothing touches Keycloak directly except the server.
+
+> [!note]
+> The operator role was originally built for HR to do their own onboarding. HR declined that ownership (out of their scope), so today both roles sit with devops. The role is kept intact: it is the right shape for whoever eventually owns day-to-day account requests, and it costs nothing to leave in place.
 
 ---
 
@@ -119,19 +124,31 @@ Logout: session is flushed server-side, then browser is redirected to Keycloak's
 
 Grafter enforces a propose → approve → apply lifecycle for all Keycloak mutations made by operators.
 
-1. **Propose**: Operator submits the edit form on a user's detail page. A `PendingChange` record is written to S3 (`grafter/changes/{uuid}.json`). Nothing touches Keycloak yet.
-2. **Queue**: The change appears in the Changes tab with status `pending`. Admins see all pending changes; operators see only their own.
+1. **Propose**: Operator submits the edit form on a user's detail page, or a bulk action from the users list (one proposal per user). A `PendingChange` record is written to S3 (`grafter/changes/pending/{uuid}.json`). Nothing touches Keycloak yet.
+2. **Queue**: The change appears in the Changes tab with status `pending`. Admins see all pending changes; operators see only their own, and can cancel their own before it is resolved.
 3. **Approve**: Admin clicks Approve. The server:
    - Acquires a Redis distributed lock (`SET grafter:change-lock:{id} 1 NX EX 30`) — if another request holds the lock, the admin gets a warning flash and the request is dropped
    - Re-reads the change from S3 and checks `status == Pending` (second guard against races)
-   - Applies the change fields to Keycloak (update user, set enabled, set team attribute) in the minimum number of API calls
-   - Updates the S3 record to `status: Approved`
+   - Applies the change fields to Keycloak in a single user PUT, plus separate group calls for a team move (group membership is not part of the user representation)
+   - Updates the S3 record to `status: Approved` and moves it to `grafter/changes/resolved/{uuid}.json`, so the pending prefix stays small — it is scanned on every page render for the queue badge
    - Releases the lock only after the S3 write succeeds
    - If the S3 write fails after Keycloak was already mutated: lock is left to expire (blocks retries), and `RECONCILIATION REQUIRED` is logged for manual intervention
 4. **Reject**: Same lock flow, no Keycloak calls. Reason is stored in the S3 record.
 5. **Audit**: Every approve/reject appends an `AuditEntry` to S3 (`grafter/audit/YYYY-MM-DD/{uuid}.json`).
 
-Admins can also apply changes directly (bypassing the queue) and create users outright.
+Admins can also apply changes directly (bypassing the queue), create users outright, set passwords, and delete accounts (single or bulk, behind a typed `DELETE` confirmation). Deletions are written to the same log as already-resolved entries, so the Changes tab is a full history of what happened to accounts rather than only a pending queue.
+
+### Storage layout
+
+| Prefix | Contents |
+|---|---|
+| `grafter/changes/pending/` | Proposals awaiting a decision |
+| `grafter/changes/resolved/` | Approved, rejected, cancelled, and deletion records |
+| `grafter/audit/YYYY-MM-DD/` | One object per audited action, success or failure |
+| `grafter/user-meta/{realm}/` | HR notes and disable reasons |
+
+> [!note]
+> Notes and disable reasons live here rather than as Keycloak user attributes: the realm's declarative user profile silently drops any attribute it has not declared, so writes appeared to succeed while the value vanished.
 
 ---
 
