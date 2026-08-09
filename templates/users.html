@@ -92,7 +92,7 @@
   <div style="display:flex; gap:6px; align-items:center; border-left:1px solid var(--border); padding-left:10px;">
     <select id="bulk-team-select" style="padding:5px 10px; font-size:0.82rem; width:160px;">
       <option value="">— set team —</option>
-      {% for g in team_groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
+      {% for g in team_groups %}<option value="{{ g.id }}">{{ g.name }}{% if g.realm_roles %} — grants: {{ g.realm_roles | join(sep=", ") }}{% endif %}</option>{% endfor %}
     </select>
     <button class="btn btn-teal btn-sm" id="bulk-team-btn">{% if is_admin %}Set team{% else %}Propose team{% endif %}</button>
   </div>

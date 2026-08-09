@@ -7,18 +7,44 @@ use axum::{
 use chrono::Utc;
 use fred::interfaces::KeysInterface;
 use fred::types::{Expiration, SetOptions};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use tower_sessions::Session;
 use uuid::Uuid;
 
 use crate::{
     auth::{new_csrf_token, csrf_tokens_equal},
     error::AppError,
-    routes::{pending_changes_count, require_admin, require_session},
+    routes::{pending_changes_count, require_admin, require_session, users::load_team_groups},
     session::{Flash, FLASH_KEY, SESSION_KEY},
-    storage::{AuditEntry, AuditOutcome, ChangeStatus},
+    storage::{AuditEntry, AuditOutcome, ChangeStatus, PendingChange},
     AppState,
 };
+
+// Adds what-this-team-grants context to a change for display, since several
+// "teams" also carry real realm roles (e.g. the "devops" team also grants
+// "iam-admin") and that needs to be visible to whoever approves it, not
+// just discoverable by cross-referencing Keycloak.
+#[derive(Serialize)]
+struct ChangeView<'a> {
+    #[serde(flatten)]
+    inner: &'a PendingChange,
+    team_grants: Option<Vec<String>>,
+}
+
+fn attach_team_grants<'a>(
+    changes: &'a [PendingChange],
+    team_roles: &HashMap<String, Vec<String>>,
+) -> Vec<ChangeView<'a>> {
+    changes.iter().map(|c| {
+        let team_grants = c.diff.iter()
+            .find(|f| f.field == "team_group_id")
+            .and_then(|f| team_roles.get(&f.after))
+            .filter(|roles| !roles.is_empty())
+            .cloned();
+        ChangeView { inner: c, team_grants }
+    }).collect()
+}
 
 // Bounds page render/DOM size as resolved history grows without limit,
 // while keeping every row in one response so the client-side status-tab
@@ -86,12 +112,27 @@ async fn list_changes(
         .await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?;
 
+    // Look up what each team-in-play actually grants (several teams also
+    // carry realm roles), so the review page can show it inline.
+    let mut realms: Vec<&str> = changes.iter().map(|c| c.realm.as_str()).collect();
+    realms.sort_unstable();
+    realms.dedup();
+    let mut team_roles: HashMap<String, Vec<String>> = HashMap::new();
+    for r in realms {
+        if let Ok(groups) = load_team_groups(&state, r).await {
+            for g in groups {
+                team_roles.insert(g.id, g.realm_roles);
+            }
+        }
+    }
+    let changes_view = attach_team_grants(&changes, &team_roles);
+
     let pending_count = if current_user.role.is_admin() { pending_changes_count(&state).await } else { 0 };
     let mut ctx = tera::Context::new();
     ctx.insert("user", &current_user);
     ctx.insert("is_admin", &current_user.role.is_admin());
     ctx.insert("active_tab", "changes");
-    ctx.insert("changes", &changes);
+    ctx.insert("changes", &changes_view);
     ctx.insert("pending_count", &pending_count);
     ctx.insert("unseen_resolved_count", &unseen_resolved_count);
     ctx.insert("csrf", &csrf);

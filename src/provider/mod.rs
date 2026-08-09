@@ -52,6 +52,11 @@ pub struct Group {
     pub name: String,
     pub path: String,
     pub subgroups: Vec<Group>,
+    // Realm roles mapped to this group — anyone added to the group inherits
+    // these automatically. Several "teams" here double as access groups
+    // (e.g. the "devops" team also grants "iam-admin"), so this needs to be
+    // visible wherever a team is assigned or reviewed, not just in Keycloak.
+    pub realm_roles: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

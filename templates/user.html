@@ -84,7 +84,7 @@
           <select id="edit_team" name="team_group_id" style="width:100%;">
             <option value="">No team</option>
             {% for g in team_groups %}
-              <option value="{{ g.id }}" {% if g.id == current_team_group_id %}selected{% endif %}>{{ g.name }}</option>
+              <option value="{{ g.id }}" {% if g.id == current_team_group_id %}selected{% endif %}>{{ g.name }}{% if g.realm_roles %} — grants: {{ g.realm_roles | join(sep=", ") }}{% endif %}</option>
             {% endfor %}
           </select>
         </div>

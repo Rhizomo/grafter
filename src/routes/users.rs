@@ -40,7 +40,7 @@ fn check_realm_access(state: &AppState, current_user: &crate::session::SessionUs
 // excluded from the picker HR/admins use to assign someone's team.
 const NON_TEAM_GROUPS: &[&str] = &["service-accounts"];
 
-async fn load_team_groups(state: &AppState, realm: &str) -> Result<Vec<Group>, AppError> {
+pub(crate) async fn load_team_groups(state: &AppState, realm: &str) -> Result<Vec<Group>, AppError> {
     let mut groups = state.provider.list_groups(realm).await?;
     groups.retain(|g| !NON_TEAM_GROUPS.contains(&g.name.as_str()));
     groups.sort_by(|a, b| a.name.cmp(&b.name));

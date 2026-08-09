@@ -259,6 +259,8 @@ struct KcGroup {
     path: String,
     #[serde(rename = "subGroups", default)]
     sub_groups: Vec<KcGroup>,
+    #[serde(rename = "realmRoles", default)]
+    realm_roles: Vec<String>,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -288,6 +290,7 @@ fn kc_group_to_group(g: KcGroup) -> Group {
         name: g.name,
         path: g.path,
         subgroups: g.sub_groups.into_iter().map(kc_group_to_group).collect(),
+        realm_roles: g.realm_roles,
     }
 }
 
@@ -544,7 +547,7 @@ impl IdentityProvider for KeycloakProvider {
             Some(_) => format!("/teams/{name}"),
             None    => format!("/{name}"),
         };
-        Ok(Group { id, name: name.to_string(), path, subgroups: vec![] })
+        Ok(Group { id, name: name.to_string(), path, subgroups: vec![], realm_roles: vec![] })
     }
 
     async fn add_user_to_group(
