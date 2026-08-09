@@ -156,6 +156,17 @@
         <button type="submit" class="btn btn-ghost">Set password</button>
       </form>
     </div>
+
+    <!-- Danger zone (admin only) — irreversible, so it's visually separated
+         from the routine account controls above. -->
+    <div class="card" style="margin-top:0; border-color:rgba(255,82,82,0.3);">
+      <h2 style="color:var(--danger);">Danger zone</h2>
+      <p style="font-size:0.8rem; color:var(--muted); line-height:1.55; margin-bottom:14px;">
+        Deleting removes this account from Keycloak permanently — it cannot be undone.
+        To offboard someone while keeping their history, disable the account instead.
+      </p>
+      <button type="button" class="btn btn-danger btn-sm" onclick="openDeleteModal()">Delete user</button>
+    </div>
     {% endif %}
   </div>
 
@@ -260,6 +271,48 @@
     </form>
   </div>
 </div>
+<!-- Delete confirmation modal -->
+<div id="delete-user-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;align-items:center;justify-content:center;">
+  <div class="card" style="width:420px;margin:0;border-color:rgba(255,82,82,0.35);">
+    <h2 style="font-size:1rem;color:var(--danger);text-transform:none;letter-spacing:0;">Delete {{ subject.username }}?</h2>
+    <p style="font-size:0.82rem;color:var(--muted);line-height:1.6;margin-bottom:16px;">
+      This permanently removes the account from Keycloak. It cannot be undone,
+      and they will immediately lose access to every service.
+    </p>
+    <form method="post" action="/users/{{ realm }}/{{ subject.id }}/delete" id="delete-user-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}">
+      <div class="field">
+        <label for="confirm_username">Type <code style="color:var(--text-strong);">{{ subject.username }}</code> to confirm</label>
+        <input type="text" id="confirm_username" name="confirm_username" required autocomplete="off"
+               data-expected="{{ subject.username }}" style="width:100%;">
+      </div>
+      <div style="display:flex;gap:10px;margin-top:4px;">
+        <button type="submit" id="confirm-delete-btn" class="btn btn-danger" disabled>Delete permanently</button>
+        <button type="button" id="close-delete-modal" class="btn btn-ghost">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+  // Keeps the destructive button inert until the typed name matches exactly.
+  // The server re-checks this too — this is just to prevent a slip.
+  (function() {
+    var modal = document.getElementById('delete-user-modal');
+    var input = document.getElementById('confirm_username');
+    var btn = document.getElementById('confirm-delete-btn');
+    window.openDeleteModal = function() {
+      input.value = '';
+      btn.disabled = true;
+      graft.showModal(modal);
+      input.focus();
+    };
+    input.addEventListener('input', function() {
+      btn.disabled = input.value.trim() !== input.dataset.expected;
+    });
+    document.getElementById('close-delete-modal').addEventListener('click', function() { graft.hideModal(modal); });
+    modal.addEventListener('click', function(e) { if (e.target === modal) graft.hideModal(modal); });
+  })();
+</script>
 <script>
   (function() {
     var modal = document.getElementById('create-team-modal');

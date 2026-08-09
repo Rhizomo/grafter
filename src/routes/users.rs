@@ -59,6 +59,7 @@ pub fn router() -> Router<AppState> {
         .route("/users/:realm/:id/roles/assign", post(assign_role))
         .route("/users/:realm/:id/roles/remove", post(remove_role))
         .route("/users/:realm/:id/set-password", post(set_user_password))
+        .route("/users/:realm/:id/delete", post(delete_user))
 }
 
 async fn index(session: Session) -> Result<impl IntoResponse, AppError> {
@@ -811,4 +812,69 @@ async fn set_user_password(
         .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?;
 
     Ok(Redirect::to(&format!("/users/{realm}/{id}")))
+}
+
+// ── Delete user ───────────────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct DeleteUserForm {
+    csrf_token: String,
+    confirm_username: String,
+}
+
+// Admin-only and irreversible: Keycloak has no undelete, and any audit entry
+// referencing this user keeps only their username afterwards. Operators never
+// get this — deleting an identity isn't an HR-shaped action, and disabling
+// (which records a reason) covers offboarding without destroying history.
+async fn delete_user(
+    State(state): State<AppState>,
+    session: Session,
+    Path((realm, id)): Path<(String, String)>,
+    Form(form): Form<DeleteUserForm>,
+) -> Result<impl IntoResponse, AppError> {
+    let current_user = require_admin(&session, &state).await?;
+
+    let session_csrf: String = session.get("csrf").await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?
+        .ok_or(AppError::CsrfMismatch)?;
+    if !csrf_tokens_equal(&form.csrf_token, &session_csrf) {
+        return Err(AppError::CsrfMismatch);
+    }
+
+    let user = state.provider.get_user(&realm, &id).await?;
+
+    // Server-side confirmation — the typed username must match the target,
+    // so a mis-aimed request can't delete the wrong account even if the
+    // client-side guard is bypassed.
+    if form.confirm_username.trim() != user.username {
+        session.insert(FLASH_KEY, Flash::warning(
+            "Confirmation did not match the username. Nothing was deleted."
+        )).await.map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?;
+        return Ok(Redirect::to(&format!("/users/{realm}/{id}")));
+    }
+
+    if user.username == current_user.username {
+        session.insert(FLASH_KEY, Flash::warning("You cannot delete your own account.")).await
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?;
+        return Ok(Redirect::to(&format!("/users/{realm}/{id}")));
+    }
+
+    crate::routes::audit_failure(
+        &state,
+        state.provider.delete_user(&realm, &id).await,
+        &current_user.username, "delete_user", &realm, Some(&user.username),
+    ).await?;
+
+    state.storage.append_audit(&AuditEntry {
+        id: Uuid::new_v4().to_string(), timestamp: Utc::now(),
+        actor: current_user.username.clone(), action: "delete_user".into(),
+        target_realm: realm.clone(), target_user: Some(user.username.clone()),
+        detail: format!("user '{}' permanently deleted", user.username),
+        outcome: AuditOutcome::Success,
+    }).await.map_err(AppError::Internal)?;
+
+    session.insert(FLASH_KEY, Flash::warning(format!("User {} was permanently deleted.", user.username))).await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("session error: {e}")))?;
+
+    Ok(Redirect::to(&format!("/users?realm={realm}")))
 }
