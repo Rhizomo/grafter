@@ -284,6 +284,10 @@ struct KcGroup {
     sub_groups: Vec<KcGroup>,
     #[serde(rename = "realmRoles", default)]
     realm_roles: Vec<String>,
+    // Keycloak's group list returns only a count here, not the children
+    // themselves — they have to be fetched per parent.
+    #[serde(rename = "subGroupCount", default)]
+    sub_group_count: u32,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -541,10 +545,33 @@ impl IdentityProvider for KeycloakProvider {
         self.delete(&url).await
     }
 
+    // Returns top-level groups with their children populated. The list
+    // endpoint reports only subGroupCount, so children are fetched per parent
+    // that has any — without this, teams nested under a parent (e.g.
+    // /adverge/core-services) are invisible to Grafter even though users
+    // are assigned to them.
     async fn list_groups(&self, realm: &str) -> ProviderResult<Vec<Group>> {
         let url = format!("{}/groups?briefRepresentation=false", self.admin_url(realm));
         let groups: Vec<KcGroup> = self.get(&url).await?;
-        Ok(groups.into_iter().map(kc_group_to_group).collect())
+
+        let mut out = Vec::with_capacity(groups.len());
+        for g in groups {
+            let needs_children = g.sub_group_count > 0 && g.sub_groups.is_empty();
+            let id = g.id.clone();
+            let mut group = kc_group_to_group(g);
+            if needs_children {
+                let children_url = format!(
+                    "{}/groups/{}/children?briefRepresentation=false",
+                    self.admin_url(realm),
+                    id
+                );
+                if let Ok(children) = self.get::<Vec<KcGroup>>(&children_url).await {
+                    group.subgroups = children.into_iter().map(kc_group_to_group).collect();
+                }
+            }
+            out.push(group);
+        }
+        Ok(out)
     }
 
     async fn get_user_groups(&self, realm: &str, user_id: &str) -> ProviderResult<Vec<Group>> {

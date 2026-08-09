@@ -68,7 +68,13 @@
   .team-row-num { color: var(--text-strong); font-weight: 700; font-variant-numeric: tabular-nums; }
   .team-row-pct { color: var(--muted2); font-size: 0.73rem; width: 38px; text-align: right; font-variant-numeric: tabular-nums; }
 
-  .dash-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+  /* Right column stacks Requests over the org split and stretches to match
+     the attention list, so neither side leaves a dangling gap. */
+  .dash-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: stretch; }
+  .dash-side { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+  .dash-side > .card { margin-bottom: 0; }
+  .dash-side > .card:last-child { flex: 1; display: flex; flex-direction: column; }
+  .dash-cols > .card { margin-bottom: 0; }
   .att-row {
     display: flex; align-items: center; gap: 10px; padding: 9px 0;
     border-bottom: 1px solid var(--border);
@@ -81,11 +87,9 @@
 </style>
 
 <div class="page-header">
-  <div>
-    <h1 style="margin-bottom:2px;">Overview</h1>
-    <span style="font-size:0.8rem; color:var(--muted);">
-      {% if is_admin %}Users and requests in {{ realm }}{% else %}Users and your requests in {{ realm }}{% endif %}
-    </span>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <h1 style="margin-bottom:0;">Overview</h1>
+    <span class="pill pill-gray">{{ realm }}</span>
   </div>
   <a href="/users/new" class="btn btn-primary">+ New user</a>
 </div>
@@ -108,12 +112,10 @@
   <div style="position:relative;z-index:1;">
     <p class="hero-lead">
       {% if attention_total > 0 %}
-        <b>{{ active_users }}</b> of {{ total_users }} accounts can sign in.
-        <b>{{ attention_total }}</b> {% if attention_total == 1 %}account is{% else %}accounts are{% endif %}
-        either missing a team or were disabled without being removed from one.
+        <b>{{ active_users }}</b> of {{ total_users }} accounts can sign in —
+        <b>{{ attention_total }}</b> need{% if attention_total == 1 %}s{% endif %} tidying up.
       {% else %}
-        <b>{{ active_users }}</b> of {{ total_users }} accounts can sign in, every active account
-        has a team, and no disabled account was left in one.
+        <b>{{ active_users }}</b> of {{ total_users }} accounts can sign in. Nothing needs tidying up.
       {% endif %}
     </p>
     <div class="legend">
@@ -167,7 +169,9 @@
     {% endif %}
   </div>
 
-  <!-- Requests -->
+  <!-- Right column: requests over the org split, together matching the
+       height of the attention list beside them. -->
+  <div class="dash-side">
   <div class="card">
     <h2>Requests</h2>
     <div class="pipe">
@@ -188,9 +192,8 @@
       </div>
     </div>
   </div>
-</div>
 
-<!-- Team split: full width, since the bar reads better long -->
+<!-- Team split -->
 <div class="card">
   <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;">
     <h2 style="margin:0;">How the org splits</h2>
@@ -222,6 +225,8 @@
   {% else %}
     <p style="font-size:0.84rem;color:var(--muted);">No active user has a team yet.</p>
   {% endif %}
+</div>
+</div>
 </div>
 
 {% if is_admin %}

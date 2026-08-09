@@ -40,8 +40,20 @@ fn check_realm_access(state: &AppState, current_user: &crate::session::SessionUs
 // excluded from the picker HR/admins use to assign someone's team.
 const NON_TEAM_GROUPS: &[&str] = &["service-accounts"];
 
+// Flattens the group tree: teams may be nested (e.g. /adverge/core-services),
+// and users are assigned to those children directly, so a top-level-only list
+// would leave them unselectable here and uncounted on the dashboard.
+fn flatten_groups(groups: Vec<Group>, out: &mut Vec<Group>) {
+    for mut g in groups {
+        let children = std::mem::take(&mut g.subgroups);
+        out.push(g);
+        flatten_groups(children, out);
+    }
+}
+
 pub(crate) async fn load_team_groups(state: &AppState, realm: &str) -> Result<Vec<Group>, AppError> {
-    let mut groups = state.provider.list_groups(realm).await?;
+    let mut groups = Vec::new();
+    flatten_groups(state.provider.list_groups(realm).await?, &mut groups);
     groups.retain(|g| !NON_TEAM_GROUPS.contains(&g.name.as_str()));
     groups.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(groups)

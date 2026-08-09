@@ -258,6 +258,21 @@ mod tests {
         assert!(html.contains("failed"), "a failed audit entry should be marked");
     }
 
+    // The layout nests panels by hand, so an unbalanced <div> is an easy
+    // mistake that renders "fine" but collapses the page structure.
+    #[test]
+    fn div_tags_are_balanced() {
+        for (label, html) in [
+            ("admin", render_with(true, 6, 2).unwrap()),
+            ("operator", render_with(false, 6, 2).unwrap()),
+            ("empty", render_with(true, 0, 0).unwrap()),
+        ] {
+            let opens = html.matches("<div").count();
+            let closes = html.matches("</div>").count();
+            assert_eq!(opens, closes, "{label} dashboard has unbalanced div tags");
+        }
+    }
+
     #[test]
     fn renders_for_operator_without_activity_feed() {
         let html = render_with(false, 6, 1).expect("operator dashboard should render");
